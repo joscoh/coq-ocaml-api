@@ -1,0 +1,2 @@
+(library
+ (name coq_ocaml_api))
