@@ -1,17 +1,21 @@
 (coq.extraction
  (prelude ListAPIExtract)
  (extracted_modules ListAPI)
-  ; BinNums BinPos Datatypes Specif  List0 String0 Bool0 Common Nat0
-  ; base Basics BinInt strings0 zmap pmap fin_maps numbers option0
-  ; Byte CoqUtil CoqBigInt LocTy ssrbool path Monads
-  ; extmap extset CoqWstdlib CoqWeakhtbl CoqHashtbl hashcons NumberDefs
-  ; NumberFuncs State CoqCtr PmapExtra
-  ; IntFuncs 
-  ; CoqExthtbl
-  ; ConstantDefs
-  ; IdentDefs
-  ; TyDefs TyFuncs TermDefs TermFuncs DeclDefs DeclFuncs CoercionDefs 
-  ; TheoryDefs TheoryFuncs TaskDefs TaskFuncs TransDefs
-  ; EliminateInductive EliminateDefinition)
  (theories Flocq compcert ListAPI CoqCompat ExtLib)
  )
+
+(rule
+  (deps ListAPI.ml)
+  (targets MyList.ml)
+  (action
+    (with-stdout-to MyList.ml
+     (pipe-stdout
+        (cat ListAPI.ml)
+        (run sed -e "s/^open.*//g")
+     )
+    )))
+
+(library
+ (name ListAPI)
+ (modules (:standard \ ListAPI))
+ (libraries zarith re CoqAPI))

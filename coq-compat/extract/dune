@@ -263,7 +263,8 @@
 ;  )
 
 (library
- (name CoqOcamlAPI)
+ (name CoqAPI)
+ (public_name CoqAPI)
  (modules (:standard \ CoqCtr ))
  ;TyExn TyDefs TyFuncs TyExtra IdentDefs IdentExtra 
  ;  LocTy LocExtra Locpre CoqWstdlib Wstdlibextra CoqWeakhtbl Weakhtblextra

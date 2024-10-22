@@ -1,0 +1,24 @@
+(coq.extraction
+ (prelude CtrAPIExtract)
+ (extracted_modules CtrAPI)
+ (theories Flocq compcert CtrAPI CoqCompat ExtLib)
+ )
+
+(rule
+  (deps CtrImports.ml CtrAPI.ml)
+  (targets Count.ml)
+  (action
+    (with-stdout-to Count.ml
+     (pipe-stdout
+        (cat CtrAPI.ml)
+        (run sed -e "s/^open.*//g")
+        (run cat CtrImports.ml -)
+     )
+    )))
+
+; build resulting OCaml files
+(library
+ (name CtrAPI)
+ (modules (:standard \ CtrAPI ))
+ (flags (:standard -w -33)) 
+ (libraries CoqAPI zarith re))
