@@ -15,9 +15,11 @@ Module Int31 := Make(Wordsize_31).
 
 Definition int := Int31.int.
 Definition eqb := Int31.eq.
+Definition lt := Int31.lt.
 Definition zero := Int31.zero.
 Definition one := Int31.one.
 Definition succ (i: int) : int := Int31.add one i.
+Definition pred (i: int) : int := Int31.sub i one.
 
 
 (*For proofs, should never be used in extracted code*)
@@ -40,6 +42,45 @@ Proof.
   pose proof (Int31.signed_range i).
   rewrite Int31.signed_repr; lia.
 Qed.
+
+Lemma to_Z_lt (i1 i2: int):
+  lt i1 i2 = Z.ltb (to_Z i1) (to_Z i2).
+Proof.
+  unfold lt, to_Z.
+  unfold Int31.lt.
+  destruct (Z.ltb_spec (Int31.signed i1) (Int31.signed i2));
+  destruct (Coqlib.zlt _ _); auto; try contradiction. lia.
+Qed.
+
+Lemma to_Z_zero: to_Z zero = 0%Z.
+Proof. reflexivity. Qed.
+
+Lemma to_Z_eqb i1 i2: 
+  eqb i1 i2 = Z.eqb (to_Z i1) (to_Z i2).
+Proof.
+  unfold eqb, to_Z. rewrite Int31.signed_eq.
+  destruct (Z.eqb_spec (Int31.signed i1) (Int31.signed i2));
+  destruct (Coqlib.zeq _ _); auto; contradiction.
+Qed.
+
+Lemma to_Z_pred (i: int): 
+  (Int31.min_signed < to_Z i)%Z ->
+  to_Z (pred i) = Z.pred (to_Z i).
+Proof.
+  intros Hbound. unfold pred, to_Z, one in *.
+  rewrite Int31.sub_signed.
+  rewrite Int31.signed_one by reflexivity.
+  pose proof (Int31.signed_range i).
+  rewrite Int31.signed_repr; lia.
+Qed.
+
+(*Useful in proofs*)
+Lemma min31 : Int31.min_signed = (- 1073741824)%Z.
+Proof. reflexivity. Qed.
+
+Lemma max31 : Int31.max_signed = 1073741823%Z.
+Proof. reflexivity. Qed.
+
 (* Require Import Integer.
 
 Definition int : Type := int63.

@@ -68,11 +68,14 @@ Extract Inlined Constant CoqBigInt.seventeen => "(BigInt.of_int 17)".
 Extract Inlined Constant CoqBigInt.nineteen => "(BigInt.of_int 19)".
 Extract Inlined Constant CoqBigInt.to_string => "BigInt.to_string". *)
 
-(* Extract Inlined Constant CoqInt.int => "Stdlib.Int.t".
-Extract Inlined Constant CoqInt.int_eqb => "Stdlib.Int.equal".
+Extract Inlined Constant CoqInt.int => "Stdlib.Int.t".
+Extract Inlined Constant CoqInt.eqb => "Stdlib.Int.equal".
 Extract Inlined Constant CoqInt.zero => "Stdlib.Int.zero".
 Extract Inlined Constant CoqInt.one => "Stdlib.Int.one".
-Extract Inlined Constant CoqInt.two => "2". (*TODO: is constant OK?*)
+Extract Inlined Constant CoqInt.succ => "Stdlib.Int.succ".
+Extract Inlined Constant CoqInt.pred => "Stdlib.Int.pred".
+Extract Inlined Constant CoqInt.lt => "(fun x y -> Stdlib.Int.compare x y < 0)".
+(*Extract Inlined Constant CoqInt.two => "2". (*TODO: is constant OK?*)
 Extract Inlined Constant CoqInt.five => "5". (*TODO: is constant OK?*)
 Extract Inlined Constant CoqInt.neg_one => "Stdlib.Int.minus_one".
 Extract Inlined Constant CoqInt.add => "Stdlib.Int.add".
@@ -80,7 +83,7 @@ Extract Inlined Constant CoqInt.mult => "Stdlib.Int.mul".
 Extract Inlined Constant CoqInt.is_zero => "(fun x -> Stdlib.Int.equal x Stdlib.Int.zero)". 
 Extract Inlined Constant hashcons.int_65599 => "65599".
 Extract Inlined Constant CoqInt.compare => "Stdlib.Int.compare".
-Extract Inlined Constant CoqInt.ge => "(fun x y -> Stdlib.Int.compare x y >= 0)". *)
+Extract Inlined Constant CoqInt.ge => "(fun x y -> Stdlib.Int.compare x y >= 0)".*)
 
 (*TODO: maybe don't need*)
 (* Extract Inlined Constant CoqBigInt.to_Z => "ZCompat.to_Z_big".
