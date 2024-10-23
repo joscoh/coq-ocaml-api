@@ -384,6 +384,10 @@ Definition foldl_st := fun {S1 A B: Type} (f: A -> B -> st S1 A) =>
               foldl_st t j
   end.
 
+Definition iter_st {S A: Type}
+  (f: A -> st S unit) (l: list A) : st S unit :=
+  foldl_st (fun _ x => f x) l tt.
+
 Local Open Scope errst_scope.
 
 Definition foldr_errst := fun {S1 A B: Type} (f: B -> A -> errState S1 A) (base: A) =>

@@ -1,0 +1,4 @@
+(executable
+ (public_name clientctr)
+ (name CountClient)
+ (libraries CtrAPI))

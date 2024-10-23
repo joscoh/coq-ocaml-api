@@ -20,5 +20,5 @@
 (library
  (name CtrAPI)
  (modules (:standard \ CtrAPI ))
- (flags (:standard -w -33)) 
+ (flags (:standard -w -33 -w -32)) 
  (libraries CoqAPI zarith re))

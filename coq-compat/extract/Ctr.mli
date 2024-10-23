@@ -1,10 +1,13 @@
 module type Ctr =
  sig
-  val create : unit
+  val create : unit -> unit
 
   val incr : unit -> unit
 
   val get : unit -> BigInt.t
+
+  (*In OCaml, this is the identity function*)
+  val reset : 'a -> 'a
  end
 
 module type BigIntVal =

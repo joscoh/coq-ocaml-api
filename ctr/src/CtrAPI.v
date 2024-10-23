@@ -7,14 +7,18 @@ End ZVal.
 
 Module C := MakeCtr ZVal.
 
-Definition create : ctr unit :=
+Definition create : unit -> ctr unit :=
   C.create.
 
-Definition reset : ctr unit :=
+Definition reset : unit -> ctr unit :=
   C.create.
 
-Definition incr : ctr unit :=
-  C.incr tt.
+Definition incr : unit -> ctr unit :=
+  C.incr.
 
 Definition read : unit -> ctr CoqBigInt.t :=
-  fun _ => C.get tt.
+  C.get.
+
+(*For Coq only, not in .mli file*)
+Definition run_and_reset {A: Type} : ctr A -> A :=
+  @C.reset A.

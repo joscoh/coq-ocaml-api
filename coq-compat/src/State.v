@@ -26,7 +26,7 @@ Parameter initial : t.
 End ModTy.
 
 Module Type State (T: ModTy).
-Parameter create : st T.t unit.
+Parameter create : unit -> st T.t unit.
 Parameter get : unit -> st T.t T.t.
 Parameter set : T.t -> st T.t unit.
 Parameter runState : forall {A: Type}, st T.t A -> A. 
@@ -34,7 +34,7 @@ End State.
 
 Module MakeState (T: ModTy) <: State T.
 Definition st_ref : st_ty T.t := new_st T.initial.
-Definition create : st T.t unit :=
+Definition create (_: unit) : st T.t unit :=
   st_set T.initial.
 Definition get (_: unit) : st T.t T.t := st_get.
 Definition set (t: T.t) : st T.t unit := st_set t.
