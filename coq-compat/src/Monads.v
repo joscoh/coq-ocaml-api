@@ -87,6 +87,30 @@ Definition st_ret {A B: Type} (x: B) : st A B := ret x.
 Definition st_list {A B: Type} (l: list (st A B)) : st A (list B) := 
   listM st_ret st_bind l.
 
+Definition dep_fst {A B: Type} (x: A * B) : {a : A | a = fst x} :=
+  exist _ (fst x) eq_refl.
+
+(*Dependent version of state so we don't forget info*)
+Definition st_bind_dep (A B C: Type) (x: st A B)
+  (f: forall (b: B) (s: A) (Heq: b = fst (runState x s)), st A C) : st A C :=
+  mkState 
+  (fun (s: A) =>
+    runState (f (proj1_sig (dep_fst (runState x s))) s 
+      (proj2_sig (dep_fst (runState x s))))
+      (snd (runState x s))).
+    (* match (runState x s) as o return o = runState x s -> C * A with
+    | (res, s1) => fun Heq => runState (f res s (f_equal fst Heq)) s1
+    end eq_refl). *)
+
+(* Definition st_bind_dep (A B C: Type) (x: st A B)
+  (f: forall (b: B) (s: A) (Heq: b = fst (runState x s)), st A C) : st A C :=
+  mkState 
+  (fun (s: A) =>
+    match (runState x s) as o return o = runState x s -> C * A with
+    | (res, s1) => fun Heq => runState (f res s (f_equal fst Heq)) s1
+    end eq_refl). *)
+
+
 (*ExceptT errtype (state A) monad (error + state)*)
 (*We need this to be a definition for extraction.
   We need the typeclass instances because Coq cannot infer
@@ -135,6 +159,17 @@ Delimit Scope errst_scope with errst.
 Module MonadNotations.
 Notation "x <- c1 ;; c2" := (@st_bind _ _ _ (fun x => c2) c1)
   (at level 61, c1 at next level, right associativity) : state_scope.
+Notation "x <-- y <-- Heq <-- c1 ;; c2" := (@st_bind_dep _ _ _ c1 (fun x y Heq => c2))
+  (at level 61, c1 at next level, right associativity) : state_scope.
+
+
+  (* Definition st_bind_dep (A B C: Type) (x: st A B)
+  (f: forall (b: B) (s: A) (Heq: b = fst (runState x s)), C * A) : st A C :=
+  mkState 
+  (fun (s: A) =>
+    match (runState x s) as o return o = runState x s -> C * A with
+    | (res, s1) => fun Heq => f res s (f_equal fst Heq)
+    end eq_refl). *)
 
 Notation "x <- c1 ;; c2" := (@err_bnd _ _ (fun x => c2) c1)
   (at level 61, c1 at next level, right associativity) : err_scope.

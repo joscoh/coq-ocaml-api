@@ -1,8 +1,6 @@
 Require Export Coq.ZArith.BinInt.
-Require Export CoqInt.
 Require Import Coq.Strings.String.
 (* Require Import CoqUtil. *)
-Require Export Common.
 (* Require Import Integer. *)
 
 Local Open Scope Z_scope.
@@ -14,9 +12,14 @@ Local Open Scope Z_scope.
   to ensure that the extracted code is valid OCaml and does
   not rely on Coq's Z type*)
 
-Definition t : Type := Z.
+Definition t : Set := Z.
 Definition zero : t := 0.
 Definition succ : t -> t := Z.succ.
+Definition eqb : t -> t -> bool := Z.eqb.
+
+Lemma eqb_eq (z1 z2: t) : eqb z1 z2 = true <-> z1 = z2.
+Proof. apply Z.eqb_eq. Qed.
+
 (* Definition one : t := 1.
 Definition zero : t := 0.
 Definition add : t -> t -> t := Z.add.
