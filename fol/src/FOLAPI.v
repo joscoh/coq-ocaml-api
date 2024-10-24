@@ -545,6 +545,17 @@ Proof.
   intros Hp.
   apply st_spec_weaken; auto.
 Qed.
+
+Lemma st_spec_weaken_post {A B: Type} (P: A -> Prop) 
+  (Q1 Q2: A -> B -> A -> Prop)
+  (s: st A B):
+  (forall i x f, Q1 i x f -> Q2 i x f) ->
+  st_spec P s Q1 ->
+  st_spec P s Q2.
+Proof.
+  intros Hp.
+  apply st_spec_weaken; auto.
+Qed.
 (*Much nicer for proofs*)
 (*NOTE: st_spec_ret too weak (unlike paper) - we do in fact want
   to know that the precondition holds*)
@@ -667,6 +678,12 @@ Proof.
   unfold st_spec; auto.
 Qed.
 
+Lemma st_spec_init {A B: Type} (x: st A B) (P: A -> Prop):
+  st_spec P x (fun s1 _ _ => P s1).
+Proof.
+  unfold st_spec. auto.
+Qed.
+
 (* Lemma st_spec_frame {A B: Type} (P1 P2: A -> Prop) Q1 (o: st A B):
   st_spec P1 o Q1 ->
   (st_spec P2 o (fun _ _ i => P2 i)) -> (*This property is preserved*)
@@ -732,6 +749,35 @@ Section SubCorrect.
 Variable (v: var) (t: tm).
 Definition sub_rep (vv: val) (tm1 tm2: tm) :=
   tm_rep vv tm1 = tm_rep (add_val v (tm_rep vv t) vv) tm2.
+
+(*[t_open_bound] increases the state*)
+Lemma t_open_bound_st (b: tm_bound):
+  st_spec (fun _ => True) (t_open_bound b)
+    (fun i _ j => i < j).
+Proof.
+  unfold t_open_bound.
+  destruct b as [v2 t2].
+  apply prove_st_spec_bnd with (P2:= fun _ _ => True) 
+    (Q1:= fun i _ j => i < j)
+    (Q2:=fun _ i _ j => i <= j)
+    (Q3:=fun i _ j => i < j); auto; [| |intros; lia].
+  + unfold rename_var, create_var.
+    (*Reason about counter*)
+    apply prove_st_spec_bnd with (P2:= fun _ _ => True) 
+    (Q1:= fun i _ j => i < j)
+    (Q2:=fun _ i _ j => i <= j)
+    (Q3:=fun i _ j => i < j); auto; [| | intros; lia].
+    * apply st_spec_incr. intros. (*TODO: lemma*)
+      unfold CoqBigInt.succ. lia.
+    * intros _. apply prove_st_spec_bnd with (P2:= fun _ _ => True) 
+      (Q1:= fun i _ j => i <= j)
+      (Q2:=fun _ i _ j => i <= j)
+      (Q3:=fun i _ j => i <= j); auto; [| | intros; lia].
+      -- apply st_spec_get. intros; lia.
+      -- intros x. apply prove_st_spec_ret. intros; lia.
+  + intros x. apply prove_st_spec_ret. intros; lia.
+Qed.
+
 (* 
 Lemma t_open_bound_spec (tm1: tm) (b: tm_bound):
   st_spec (fun i => tm_st_wf i tm1) (t_open_bound b) 
@@ -770,10 +816,62 @@ st_spec (fun i : CoqBigInt.t => tm_st_wf i t) (t_open_bound b)
 (fun (_ : CoqBigInt.t) (r : var * tm) (s2 : CoqBigInt.t) =>
 tm_st_wf s2 t /\ ~ In (fst r) (tm_fv t1)) *)
 
+Lemma tm_st_wf_lt i j tm1:
+  tm_st_wf i tm1 ->
+  i <= j ->
+  tm_st_wf j tm1.
+Proof. unfold tm_st_wf. intros Hwf Hij v1 Hinv1.
+  specialize (Hwf _ Hinv1). lia. 
+Qed.
+
+Definition var_st_wf (i: CoqBigInt.t) (v: var) : Prop :=
+  snd v < i.
+
+Lemma var_st_wf_lt i j v1:
+  var_st_wf i v1 ->
+  i <= j ->
+  var_st_wf j v1.
+Proof.
+  unfold var_st_wf. lia.
+Qed.
+
+(*If the state only increases, all terms are still wf*)
+Lemma tm_st_wf_preserved {A: Type} (tm1: tm) (o: state CoqBigInt.t A):
+  st_spec (fun _ => True) o (fun i _ j => i <= j) ->
+  st_spec (fun i => tm_st_wf i tm1) o (fun _ _ j => tm_st_wf j tm1).
+Proof.
+  intros Hspec.
+  apply st_spec_weaken with (P1:=fun i => True /\ tm_st_wf i tm1)
+    (Q1:=fun i _ j => i <= j /\ tm_st_wf i tm1); auto.
+  - intros i _ j [Hij Hwf]. eapply tm_st_wf_lt; eauto.
+  - apply st_spec_and; auto. apply st_spec_init.
+Qed.
+
+Lemma var_st_wf_preserved {A: Type} (v1: var) (o: state CoqBigInt.t A):
+  st_spec (fun _ => True) o (fun i _ j => i <= j) ->
+  st_spec (fun i => var_st_wf i v1) o (fun _ _ j => var_st_wf j v1).
+Proof.
+  intros Hspec.
+  apply st_spec_weaken with (P1:=fun i => True /\ var_st_wf i v1)
+    (Q1:=fun i _ j => i <= j /\ var_st_wf i v1); auto.
+  - intros i _ j [Hij Hwf]. eapply var_st_wf_lt; eauto.
+  - apply st_spec_and; auto. apply st_spec_init.
+Qed.
+
+(*TODO: prove stronger lemma after*)
 Lemma t_open_bound_wf (tm1: tm) (b: tm_bound):
   st_spec (fun i => tm_st_wf i tm1) (t_open_bound b) 
     (fun _ _ s2 => tm_st_wf s2 tm1).
 Proof.
+  apply tm_st_wf_preserved.
+  apply st_spec_weaken with (P1:=fun _ => True)
+  (Q1:=fun i _ j => i < j); auto; [intros; lia|].
+  apply t_open_bound_st.
+Qed.
+(*   
+   intros i; auto.
+  -
+
   unfold t_open_bound.
   destruct b as [v2 t2].
   eapply prove_st_spec_bnd_nondep with (Q1:=fun _ s1 => tm_st_wf s1 tm1)
@@ -794,7 +892,86 @@ Proof.
       * apply st_spec_get. auto.
       * intros i. apply prove_st_spec_ret. auto.
   - intros x. apply prove_st_spec_ret. auto.
+Qed. *)
+
+(*Prove that resulting state is larger*)
+Lemma sub_t_incr (tm1: tm):
+  st_spec (fun _ => True) (sub_t v t tm1) (fun s1 _ s2 => s1 <= s2).
+Proof.
+  unfold sub_t.
+  apply tm_traverse_elim.
+  - intros c; apply prove_st_spec_ret. intros. lia.
+  - intros x. apply prove_st_spec_ret. intros. lia.
+  - intros o t1 t2 IH1 IH2.
+    apply prove_st_spec_bnd with (P2:= fun _ _ => True) 
+    (Q1:= fun i _ j => i <= j)
+    (Q2:=fun _ i _ j => i <= j)
+    (Q3:=fun i _ j => i <= j); auto; [| intros; lia].
+    intros r1. apply prove_st_spec_bnd with (P2:= fun _ _ => True) 
+    (Q1:= fun i _ j => i <= j)
+    (Q2:=fun _ i _ j => i <= j)
+    (Q3:=fun i _ j => i <= j); auto; [| intros; lia].
+    intros r2. apply prove_st_spec_ret. intros; lia.
+  - intros t1 b IHb IHt1.
+    apply prove_st_spec_bnd with (P2:= fun _ _ => True) 
+    (Q1:= fun i _ j => i <= j)
+    (Q2:=fun _ i _ j => i <= j)
+    (Q3:=fun i _ j => i <= j); auto; [| intros; lia].
+    intros r1.
+    apply prove_st_spec_dep_bnd with (P2:= fun _ _ => True) 
+    (Q1:= fun i _ j => i <= j)
+    (Q2:=fun _ i _ j => i <= j)
+    (Q3:=fun i _ j => i <= j); auto; [| | intros; lia].
+    + (*Prove [t_open_bound]*) eapply st_spec_weaken_post.
+      2: apply t_open_bound_st. simpl. intros; lia.
+    + (*Prove rest - from IH2*)
+      intros b2 i Hb2.
+      apply prove_st_spec_bnd with (P2:= fun _ _ => True) 
+      (Q1:= fun i _ j => i <= j)
+      (Q2:=fun _ i _ j => i <= j)
+      (Q3:=fun i _ j => i <= j); auto; [| | intros; lia].
+      1: { eapply IHb; eauto. }
+      intros t2. apply prove_st_spec_ret; intros; lia.
 Qed.
+
+(*Therefore, all terms and variables are wf*)
+Lemma sub_t_wf (tm2: tm) (tm1: tm):
+  st_spec (fun i => tm_st_wf i tm2)
+    (sub_t v t tm1)
+    (fun _ _ s2 => tm_st_wf s2 tm2).
+Proof.
+  apply tm_st_wf_preserved, sub_t_incr.
+Qed.
+
+Lemma sub_t_var_wf (v1: var) (tm1: tm):
+  st_spec (fun i => var_st_wf i v1)
+    (sub_t v t tm1)
+    (fun _ _ s2 => var_st_wf s2 v1).
+Proof.
+  apply var_st_wf_preserved, sub_t_incr.
+Qed.
+
+(* 
+(*TODO: START *)
+
+
+      apply t_open_bound_st.
+
+    
+    
+     (Q1:=fun v1 s1 => tm_st_wf s1 tm2)
+    (Q2:= fun _ t3 s4 => tm_st_wf s4 tm2); auto.
+    apply prove_st_spec_bnd_nondep with (Q1:=fun r1 s1 => tm_st_wf s1 tm2)
+    (Q2:= fun _ t3 s4 => tm_st_wf s4 tm2); auto.
+    intros r1.
+
+      * apply IH1. auto.
+      * intros r2. apply prove_st_spec_ret.
+    
+     with (P1).
+  
+  
+   auto.
 
 Lemma sub_t_wf (tm2: tm) (tm1: tm):
   st_spec (fun i => tm_st_wf i tm2)
@@ -832,7 +1009,47 @@ Proof.
       (Q2:= fun _ t3 s4 => tm_st_wf s4 tm2); auto.
       * (*Why we needed "dep" case - for IH premise*) eapply IH1; eauto.
       * intros t2. apply prove_st_spec_ret. auto.
-Qed.
+Qed. *)
+
+
+
+(* Lemma sub_t_var_wf (x: var)  (tm1: tm):
+  st_spec (fun i => var_st_wf i x)
+    (sub_t v t tm1)
+    (fun _ _ s2 => var_st_wf s2 x). 
+Proof.
+  unfold sub_t.
+  apply tm_traverse_elim.
+  - intros c. apply prove_st_spec_ret. auto.
+  - intros x. apply prove_st_spec_ret. auto.
+  - intros o t1 t2 IH1 IH2.
+    apply prove_st_spec_bnd_nondep with (Q1:=fun r1 s1 => tm_st_wf s1 tm2)
+    (Q2:= fun _ t3 s4 => tm_st_wf s4 tm2); auto.
+    intros r1.
+    apply prove_st_spec_bnd_nondep with (Q1:=fun r2 s2 => tm_st_wf s2 tm2)
+    (Q2 := fun _ t3 s4 => tm_st_wf s4 tm2); auto.
+    intros r2. apply prove_st_spec_ret. auto.
+  - (*let case*) intros t1 b IH1 IH2.
+    (*eliminate dependent bind*)
+    (* rewrite <- (tm_traverse_equation_5 tm _ _ _ _
+      (fun _ x _ r1 r2 => st_ret (Tlet r1 (x, r2)))),
+    tm_traverse_let. *)
+    (*Now go through binds*)
+    apply prove_st_spec_bnd_nondep with (Q1:=fun r1 s1 => tm_st_wf s1 tm2)
+    (Q2:= fun _ t3 s4 => tm_st_wf s4 tm2); auto.
+    intros r1.
+    (*Here, need to reason about [t_open_bound]*)
+    (*TODO: is this right Q1 and Q2?*)
+    apply prove_st_spec_dep_bnd_nondep with (Q1:=fun v1 s1 => tm_st_wf s1 tm2)
+    (Q2:= fun _ t3 s4 => tm_st_wf s4 tm2); auto.
+    + apply t_open_bound_wf.
+    + (*Now use 2nd IH*)
+      intros b1 s1 Hb1.
+      apply prove_st_spec_bnd_nondep with (Q1:=fun v1 s1 => tm_st_wf s1 tm2)
+      (Q2:= fun _ t3 s4 => tm_st_wf s4 tm2); auto.
+      * (*Why we needed "dep" case - for IH premise*) eapply IH1; eauto.
+      * intros t2. apply prove_st_spec_ret. auto.
+Qed. *)
 
 Lemma tm_st_wf_op i o t1 t2:
   tm_st_wf i t1 ->
@@ -870,6 +1087,26 @@ Proof.
 Qed.
 
 
+Lemma tm_st_wf_let_iff i t1 b:
+  tm_st_wf i (Tlet t1 b) <->
+  tm_st_wf i t1 /\
+  var_st_wf i (fst b) /\
+  tm_st_wf i (snd b).
+Proof.
+  destruct b as [v1 t2].
+  unfold tm_st_wf, var_st_wf, tm_vars; simpl. 
+  repeat (setoid_rewrite in_app_iff; simpl).
+  split.
+  - intros Hwf. split_all; auto.
+    + intros; destruct_all; destruct_or; auto.
+    + intros v2 [Hinv2 | Hinv2]; auto.
+      destruct (var_dec v2 v1); subst; auto.
+      apply Hwf. left. right. apply in_in_remove; auto.
+  - intros [Hwf1 [Hwfv Hwf2]] v2. intros; destruct_or; subst; auto.
+    apply in_remove in H. destruct_all. auto.
+Qed.
+
+
 (* Lemma tm_st_wf_op_inv i o t1 t2: *)
   (* tm_st_wf i (Top o t1 t2) ->
   tm_st_wf i t1 /\
@@ -890,8 +1127,6 @@ Qed.
 
 
 
-Definition var_st_wf (i: CoqBigInt.t) (v: var) : Prop :=
-  snd v < i.
 
 Lemma sub_t_correct (tm1: tm) :
   st_spec 
@@ -968,7 +1203,55 @@ Proof.
     + rewrite tm_st_wf_op_iff. split; auto.
     + intros vv. apply sub_rep_op; auto.
   - (*Tlet - interesting case*)
-    intros t1 b1 IHt1 IHb.
+    intros t1 b1 IHb IHt1.
+    (*Like before, first remove Tlet from wf*)
+    apply st_spec_weaken with (P1:= fun i =>
+      (tm_st_wf i (snd b1) /\ var_st_wf i (fst b1)) /\
+      (tm_st_wf i t /\ tm_st_wf i t1 /\ var_st_wf i v))
+    (Q1:=fun _ tm2 i => tm_st_wf i t /\ tm_st_wf i t1 /\
+      var_st_wf i (fst b1) /\ tm_st_wf i (snd b1) /\
+      tm_st_wf i tm2 /\ var_st_wf i v /\ 
+      (forall vv, sub_rep vv tm2 (Tlet t1 b1))); auto;
+    try solve[ setoid_rewrite tm_st_wf_let_iff; intros; destruct_all; split_all; auto].
+    (*Now apply IHt1*)
+    apply prove_st_spec_bnd_nondep with (Q1:=fun r1 i =>
+      (*Stuff to prove separately*)
+      (tm_st_wf i (snd b1) /\ var_st_wf i (fst b1)) /\
+      (*Conclusions of IH*)
+      (tm_st_wf i t /\ tm_st_wf i t1 /\ tm_st_wf i r1 /\
+       var_st_wf i v /\ (forall vv, sub_rep vv r1 t1)))
+    (Q2:=(fun _ tm2 i =>
+      tm_st_wf i t /\
+      tm_st_wf i t1 /\
+      var_st_wf i (fst b1) /\
+      tm_st_wf i (snd b1) /\
+      tm_st_wf i tm2 /\ var_st_wf i v /\ 
+        (forall vv, sub_rep vv tm2 (Tlet t1 b1)))); auto.
+    1: {
+      apply st_spec_and; [apply st_spec_and | apply IHt1];
+      [apply sub_t_wf|apply sub_t_var_wf].
+    }
+    intros r1.
+    (*TODO: START*)
+      (tm_st_wf s1 t2) /\
+      (*Conclusions of IH1*)
+      (tm_st_wf s1 t /\
+      tm_st_wf s1 t1 /\
+      tm_st_wf s1 r1 /\
+      var_st_wf s1 v /\
+      (forall vv, sub_rep vv r1 t1)))
+    (*TODO: isn't this the same as post*)
+    (Q2:= fun _ t3 s4 =>
+      tm_st_wf s4 t /\
+      tm_st_wf s4 t1 /\
+      tm_st_wf s4 t2 /\
+      tm_st_wf s4 t3 /\
+      var_st_wf s4 v /\
+      (forall vv, sub_rep vv t3 (Top o t1 t2))); auto;
+    apply prove_
+    
+     }
+
     (*TODO: prove iff lemma for tm_st_wf Tlet*)
     (*idea: first only consumes t1, gives v1
       then in [t_open_bound], get that
