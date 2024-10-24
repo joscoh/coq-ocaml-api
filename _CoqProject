@@ -2,3 +2,4 @@
 -Q _build/default/list/src ListAPI
 -Q _build/default/ctr/src CtrAPI
 -Q _build/default/ctr/client-coq CountClient
+-Q _build/default/term/src TermAPI
