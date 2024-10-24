@@ -340,8 +340,8 @@ Import MonadNotations.
 Local Open Scope state_scope.
 
 Definition create_var (name: string) : ctr var :=
-  _ <- C.incr tt ;;
   i <- C.get tt ;;
+  _ <- C.incr tt ;;
   st_ret (name, i).
 
 Definition rename_var (v: var) : ctr var :=
@@ -684,6 +684,16 @@ Proof.
   unfold st_spec. auto.
 Qed.
 
+Lemma st_spec_split {A B: Type} (x: st A B) (P: A -> Prop)
+  Q1 Q2:
+  st_spec P x Q1 ->
+  st_spec P x Q2 ->
+  st_spec P x (fun a b c => (Q1 a b c) /\ (Q2 a b c)).
+Proof.
+  unfold st_spec. auto.
+Qed. 
+
+
 (* Lemma st_spec_frame {A B: Type} (P1 P2: A -> Prop) Q1 (o: st A B):
   st_spec P1 o Q1 ->
   (st_spec P2 o (fun _ _ i => P2 i)) -> (*This property is preserved*)
@@ -764,17 +774,19 @@ Proof.
   + unfold rename_var, create_var.
     (*Reason about counter*)
     apply prove_st_spec_bnd with (P2:= fun _ _ => True) 
-    (Q1:= fun i _ j => i < j)
-    (Q2:=fun _ i _ j => i <= j)
-    (Q3:=fun i _ j => i < j); auto; [| | intros; lia].
-    * apply st_spec_incr. intros. (*TODO: lemma*)
-      unfold CoqBigInt.succ. lia.
-    * intros _. apply prove_st_spec_bnd with (P2:= fun _ _ => True) 
       (Q1:= fun i _ j => i <= j)
+      (Q2:=fun _ i _ j => i < j)
+      (Q3:=fun i _ j => i < j); auto; [| | intros; lia].
+    * apply st_spec_get. intros; lia.
+    * intros i.
+      apply prove_st_spec_bnd with (P2:= fun _ _ => True) 
+      (Q1:= fun i _ j => i < j)
       (Q2:=fun _ i _ j => i <= j)
-      (Q3:=fun i _ j => i <= j); auto; [| | intros; lia].
-      -- apply st_spec_get. intros; lia.
-      -- intros x. apply prove_st_spec_ret. intros; lia.
+      (Q3:=fun i _ j => i < j); auto; [| | intros; lia].
+      -- (*incr*)
+        apply st_spec_incr. intros. (*TODO: lemma*)
+        unfold CoqBigInt.succ. lia.
+      -- intros _. apply prove_st_spec_ret. intros; lia.
   + intros x. apply prove_st_spec_ret. intros; lia.
 Qed.
 
@@ -868,6 +880,253 @@ Proof.
   (Q1:=fun i _ j => i < j); auto; [intros; lia|].
   apply t_open_bound_st.
 Qed.
+
+Lemma t_open_bound_var_wf (v1: var) (b: tm_bound):
+  st_spec (fun i => var_st_wf i v1) (t_open_bound b) 
+    (fun _ _ s2 => var_st_wf s2 v1).
+Proof.
+  apply var_st_wf_preserved.
+  apply st_spec_weaken with (P1:=fun _ => True)
+  (Q1:=fun i _ j => i < j); auto; [intros; lia|].
+  apply t_open_bound_st.
+Qed.
+
+Ltac destruct_all :=
+  repeat match goal with
+  | H: ?P /\ ?Q |-_ => destruct H
+  end.
+
+Ltac split_all :=
+  repeat match goal with
+  | |- ?P /\ ?Q => split
+  end.
+
+Ltac destruct_or :=
+  repeat match goal with
+  | H: ?P \/ ?Q |- _ => destruct H
+  end.
+
+(*TODO: move*)
+
+(*free vars of [tm_subst_unsafe]*)
+Lemma in_fv_subst t1 x t2:
+  forall y, In y (tm_fv (tm_subst_unsafe x t1 t2)) -> 
+  In y (tm_fv t1) \/ In y (tm_fv t2).
+Proof.
+  intros y. induction t2 as [| v1 | o tm1 tm2 IH1 IH2 | tm1 [v1 tm2] IHtm1 IHb]; simpl; auto.
+  - destruct (var_dec x v1); auto.
+  - rewrite !in_app_iff; intros [Hin | Hin]; auto;
+    [apply IH1 in Hin | apply IH2 in Hin]; destruct_or; auto.
+  - rewrite !in_app_iff. simpl in *. intros [Hin | Hin];
+    [apply IHtm1 in Hin; destruct_or; auto|].
+    apply in_remove in Hin. 
+    destruct Hin as [Hin Hy].
+    destruct (var_dec x v1); subst; auto.
+    + right. right. apply in_in_remove; auto.
+    + apply IHb in Hin. destruct_or; auto.
+      right. right. apply in_in_remove; auto.
+Qed.
+
+Lemma in_bnd_subst t1 x t2:
+  forall y, In y (tm_bnd (tm_subst_unsafe x t1 t2)) -> 
+  In y (tm_bnd t1) \/ In y (tm_bnd t2).
+Proof.
+  intros y. induction t2 as [| v1 | o tm1 tm2 IH1 IH2 | tm1 [v1 tm2] IHtm1 IHb]; simpl; auto.
+  - destruct (var_dec x v1); auto.
+  - rewrite !in_app_iff; intros [Hin | Hin]; auto;
+    [apply IH1 in Hin | apply IH2 in Hin]; destruct_or; auto.
+  - rewrite !in_app_iff. simpl in *.
+    intros [Heq | [Hin | Hin]]; subst; auto;
+    [apply IHtm1 in Hin; destruct_or; auto|].
+    destruct (var_dec x v1); subst; auto.
+    apply IHb in Hin; destruct_or; auto.
+Qed.
+
+Lemma in_vars_subst t1 x t2:
+  forall y, In y (tm_vars (tm_subst_unsafe x t1 t2)) -> 
+  In y (tm_vars t1) \/ In y (tm_vars t2).
+Proof.
+  intros y. unfold tm_vars. rewrite !in_app_iff.
+  intros [Hinfv | Hinbnd]; [apply in_fv_subst in Hinfv | apply in_bnd_subst in Hinbnd];
+  destruct_or; auto.
+Qed.
+
+(*TODO: need lemma showing that new var not in any term that was wf*)
+
+Lemma t_open_bound_notin (t1: tm) (b: tm_bound):
+  st_spec (fun i => tm_st_wf i t1)
+    (t_open_bound b)
+    (fun _ b2 _ => ~ In (fst b2) (tm_vars t1)).
+Proof.
+  unfold t_open_bound.
+  destruct b as [v1 t2].
+  apply prove_st_spec_bnd_nondep with (Q1:=fun v2 i =>
+    tm_st_wf i t1 /\ ~ In v2 (tm_vars t1))
+  (Q2:= fun _ b2 _ => ~ In (fst b2) (tm_vars t1)); auto.
+  - (*rename var*)
+    unfold rename_var, create_var.
+    apply prove_st_spec_bnd with (Q1:=fun i x j =>
+      x = i /\ x = j /\ tm_st_wf i t1)
+    (P2:=fun x j => x = j /\ tm_st_wf j t1)
+    (Q2:= fun _ _ v2 i => tm_st_wf i t1 /\ ~ In v2 (tm_vars t1)); auto.
+    3: { intros; destruct_all; subst; auto. }
+    + apply st_spec_get. auto.
+    + intros i1. 
+       apply prove_st_spec_bnd with (Q1:=fun i _ j =>
+        i = i1 /\ i < j /\ tm_st_wf i t1)
+      (P2:=fun _ j => i1 < j /\ tm_st_wf i1 t1)
+      (Q2 := fun _ _ v2 i =>
+        tm_st_wf i t1 /\ ~ In v2 (tm_vars t1)); auto.
+      3: { intros; destruct_all; subst; auto. }
+      * apply st_spec_incr. intros i [Hi Hwf]; subst; split_all; auto.
+        (*TODO*) unfold CoqBigInt.succ; lia.
+      * intros _. apply prove_st_spec_ret.
+        intros i [Hi Hwf]; split; auto.
+        -- eapply tm_st_wf_lt; eauto. lia.
+        -- intros Hin. apply Hwf in Hin. simpl in Hin. lia.
+  - intros v2. apply prove_st_spec_ret. simpl. intros i [Hin Hnotin]; auto.
+Qed.
+
+(*We construct a new variable*)
+Lemma t_open_bound_var_notin x (b: tm_bound):
+  st_spec (fun i => var_st_wf i x)
+    (t_open_bound b)
+    (fun _ b2 _ => snd (fst b2) <> snd x).
+Proof.
+  unfold t_open_bound.
+  destruct b as [v1 t2].
+  apply prove_st_spec_bnd_nondep with (Q1:=fun v2 i => 
+    var_st_wf i x /\ snd v2 <> snd x)
+  (Q2:= fun _ b2 _ => snd (fst b2) <> snd x); auto.
+  - (*rename var*)
+    unfold rename_var, create_var.
+    apply prove_st_spec_bnd with (Q1:=fun i y j =>
+      y = i /\ y = j /\ var_st_wf i x)
+    (P2:=fun y j => y = j /\ var_st_wf j x)
+    (Q2:= fun _ _ v2 i => var_st_wf i x /\ snd v2 <> snd x); auto.
+    3: { intros; destruct_all; subst; auto. }
+    + apply st_spec_get. auto.
+    + intros i1. 
+      apply prove_st_spec_bnd with (Q1:=fun i _ j =>
+        i = i1 /\ i < j /\ var_st_wf i x)
+      (P2:=fun _ j => i1 < j /\ var_st_wf i1 x)
+      (Q2 := fun _ _ v2 i =>
+        i1 < i /\var_st_wf i1 x /\ snd v2 <> snd x); auto.
+      3: { intros; destruct_all; subst; auto. }
+      * apply st_spec_incr. intros i [Hi Hwf]; subst; split_all; auto.
+        (*TODO*) unfold CoqBigInt.succ; lia.
+      * intros _. apply prove_st_spec_ret. intros i [Hi Hwf].
+        split_all; auto. simpl.
+        intros Hc; subst. unfold var_st_wf in Hwf. lia.
+      * intros; destruct_all; subst; auto; split; auto.
+        eapply var_st_wf_lt; eauto. lia.
+  - intros v2. apply prove_st_spec_ret. simpl. intros i [Hin Hnotin]; auto.
+Qed.
+
+(* Lemma t_open_bound_var_notin (b: tm_bound):
+  st_spec (fun i => var_st_wf i (fst b))
+    (t_open_bound b)
+    (fun _ b2 _ => snd (fst b2) <> snd (fst b)).
+Proof.
+  unfold t_open_bound.
+  destruct b as [v1 t2].
+  apply prove_st_spec_bnd_nondep with (Q1:=fun v2 i => 
+    var_st_wf i v1 /\ snd v2 <> snd v1)
+  (Q2:= fun _ b2 _ => snd (fst b2) <> snd v1); auto.
+  - (*rename var*)
+    unfold rename_var, create_var.
+    apply prove_st_spec_bnd with (Q1:=fun i y j =>
+      y = i /\ y = j /\ var_st_wf i v1)
+    (P2:=fun y j => y = j /\ var_st_wf j v1)
+    (Q2:= fun _ _ v2 i => var_st_wf i v1 /\ snd v2 <> snd v1); auto.
+    3: { intros; destruct_all; subst; auto. }
+    + apply st_spec_get. auto.
+    + intros i1. 
+      apply prove_st_spec_bnd with (Q1:=fun i _ j =>
+        i = i1 /\ i < j /\ var_st_wf i v1)
+      (P2:=fun _ j => i1 < j /\ var_st_wf i1 v1)
+      (Q2 := fun _ _ v2 i =>
+        i1 < i /\ snd v2 <> snd v1); auto.
+      3: { intros; destruct_all; subst; auto. }
+      * apply st_spec_incr. intros i [Hi Hwf]; subst; split_all; auto.
+        (*TODO*) unfold CoqBigInt.succ; lia.
+      * intros _. apply prove_st_spec_ret. intros i [Hi Hwf]. split; auto. simpl.
+        intros Hc; subst. unfold var_st_wf in Hwf. lia.
+      * intros; destruct_all; subst; split; auto.
+        eapply var_st_wf_lt; eauto. lia.
+  - intros v2. apply prove_st_spec_ret. simpl. intros i [Hin Hnotin]; auto.
+Qed. *)
+
+(*Stronger spec for [t_open_bound]*)
+Lemma t_open_bound_rep (b: tm_bound):
+  st_spec (fun i => tm_st_wf i (snd b) /\ var_st_wf i (fst b))
+    (t_open_bound b)
+    (fun _ b2 i => (*NOTE: think we don't need b, can recover
+      from wf lemma above*)
+      tm_st_wf i (snd b2) /\ var_st_wf i (fst b2) /\
+      forall vv, tm_rep vv (snd b2) = 
+        tm_rep (add_val (fst b) (vv (fst b2)) vv) (snd b) 
+    ).
+Proof.
+  unfold t_open_bound.
+  destruct b as [v1 t1]. simpl.
+  apply prove_st_spec_bnd_nondep with (Q1:=fun v2 i =>
+    tm_st_wf i t1 /\ var_st_wf i v1 /\
+    var_st_wf i v2 /\
+    ~ In v2 (tm_bnd t1))
+  (Q2:=(fun _ b2 i =>
+    tm_st_wf i (snd b2) /\
+    var_st_wf i (fst b2) /\
+    (forall vv : val, tm_rep vv (snd b2) = 
+      tm_rep (add_val v1 (vv (fst b2)) vv) t1)));
+  auto.
+  - (*rename_var*)
+    unfold rename_var, create_var.
+    eapply prove_st_spec_bnd with (Q1:= fun i x j =>
+        x = i /\ x = j /\ tm_st_wf i t1 /\ var_st_wf i v1)
+    (P2:=fun x j => x = j /\ tm_st_wf j t1 /\ var_st_wf j v1)
+    (Q2:=fun _ _ v2 i => 
+      tm_st_wf i t1 /\ var_st_wf i v1 /\ var_st_wf i v2 /\ ~ In v2 (tm_bnd t1)); auto;
+    [apply st_spec_get; auto | | intros; destruct_all; subst; auto].
+    (*Prove incr*)
+    intros i1.
+    (* apply st_spec_weaken_pre with (P1:=fun _ => tm_st_wf i1 t1 /\ var_st_wf i1 v1).
+    1: { intros; destruct_all; subst; auto. } *)
+
+    apply prove_st_spec_bnd with (Q1:=fun i _ j =>
+      i = i1 /\ i < j /\ tm_st_wf i1 t1 /\ var_st_wf i1 v1)
+    (P2:=fun _ j => i1 < j /\ tm_st_wf i1 t1 /\ var_st_wf i1 v1)
+    (Q2 := fun _ _ v2 i =>
+      tm_st_wf i t1 /\ var_st_wf i v1 /\ var_st_wf i v2 /\ ~ In v2 (tm_bnd t1)); auto.
+    3: { intros; destruct_all; subst; auto. }
+    + (*incr*) apply st_spec_incr. intros i [Heq [Hwf1 Hwf2]]; subst. 
+      split_all; auto. (*TODO*) unfold CoqBigInt.succ; lia.
+    + (*create new var*)
+      intros _. apply prove_st_spec_ret. intros j [Hij [Hwf1 Hwf2]].
+      split_all; auto.
+      * eapply tm_st_wf_lt; eauto. lia.
+      * eapply var_st_wf_lt; eauto. lia.
+      * (*Use wf assumption*)
+        unfold tm_st_wf, tm_vars in Hwf1.
+        setoid_rewrite in_app_iff in Hwf1.
+        intros Hin.
+        specialize (Hwf1 _ (ltac:(right; exact Hin))).
+        simpl in Hwf1. (*contradiction*) lia.
+  - (*Now we know variable not in, prove rep result*)
+    intros v2. apply prove_st_spec_ret.
+    intros i [Hwft1 [Hwfv1 [Hwfv2 Hnotin]]]. simpl.
+    (*Prove wf for results*)
+    split_all; auto.
+    + unfold tm_st_wf. intros x.
+      intros Hinx. apply in_vars_subst in Hinx.
+      simpl in Hinx. destruct Hinx as [[Hx | []] | Hinx]; subst; auto.
+    + (*And prove rep*)
+      intros vv. rewrite tm_subst_unsafe_rep; simpl; auto.
+      (*use notin assumption from ctr*)
+      intros v3 [Hv23 | []]; subst; auto.
+Qed.
+
+
 (*   
    intros i; auto.
   -
@@ -1061,20 +1320,7 @@ Admitted.
   intros H1 H2 x [Hinv | Hinv]; auto.
 Qed. *)
 
-Ltac destruct_all :=
-  repeat match goal with
-  | H: ?P /\ ?Q |-_ => destruct H
-  end.
 
-Ltac split_all :=
-  repeat match goal with
-  | |- ?P /\ ?Q => split
-  end.
-
-Ltac destruct_or :=
-  repeat match goal with
-  | H: ?P \/ ?Q |- _ => destruct H
-  end.
 
 Lemma tm_st_wf_op_iff i o t1 t2:
   tm_st_wf i (Top o t1 t2) <->
@@ -1127,8 +1373,10 @@ Qed.
 
 
 
-
-Lemma sub_t_correct (tm1: tm) :
+(*The correctness theorem for substitution: if the input
+  terms and variables are well-formed wrt the current state,
+  then everything is well-formed after and [sub_rep] holds*)
+Theorem sub_t_correct (tm1: tm) :
   st_spec 
     (fun i => tm_st_wf i t /\ tm_st_wf i tm1 /\ var_st_wf i v) 
     (sub_t v t tm1)
@@ -1232,571 +1480,156 @@ Proof.
       [apply sub_t_wf|apply sub_t_var_wf].
     }
     intros r1.
-    (*TODO: START*)
-      (tm_st_wf s1 t2) /\
-      (*Conclusions of IH1*)
-      (tm_st_wf s1 t /\
-      tm_st_wf s1 t1 /\
-      tm_st_wf s1 r1 /\
-      var_st_wf s1 v /\
-      (forall vv, sub_rep vv r1 t1)))
-    (*TODO: isn't this the same as post*)
-    (Q2:= fun _ t3 s4 =>
-      tm_st_wf s4 t /\
-      tm_st_wf s4 t1 /\
-      tm_st_wf s4 t2 /\
-      tm_st_wf s4 t3 /\
-      var_st_wf s4 v /\
-      (forall vv, sub_rep vv t3 (Top o t1 t2))); auto;
-    apply prove_
-    
-     }
-
-    (*TODO: prove iff lemma for tm_st_wf Tlet*)
-    (*idea: first only consumes t1, gives v1
-      then in [t_open_bound], get that
-      1. new var is not in bound *)
-      Print unsafe_s.
-
-
-    1: {  }
-
-    (Q1:=fun _ tm2 i =>
-      tm_st_wf i t /\ tm_st_wf i t1 /\ tm_st_wf i t2 /\ 
-      tm_st_wf i tm2 /\ var_st_wf i v /\ (forall vv, sub_rep vv tm2 (Top o t1 t2)));
-
-    + (*Prove t1 part*)
-      .
-
-  (*Idea: P2: after we have IH1, Q2, have full result (rest)*)
-    apply prove_st_spec_bnd_nondep with (Q1:=fun r1 s1 =>
-      (tm_st_wf s1 t /\ 
-      tm_st_wf s1 t2) /\
-      tm_st_wf s1 t1 /\
-      tm_st_wf s1 r1 /\
-      (forall vv, sub_rep vv r1 t1))
-    (Q2:= fun _ t3 s4 =>
-      tm_st_wf s4 t /\
-      tm_st_wf s4 (Top o t1 t2) /\
-      tm_st_wf s4 t3 /\
-      (forall vv, sub_rep vv t3 (Top o t1 t2))); auto.
-    1: { eapply st_spec_weaken. 3: apply IH2. all: simpl; auto.
-      intros; destruct_all; auto.
-      intros; destruct_all; auto. }
-    intros r1.
-    (*Idea: prove stronger Post (post of IH)
-      combine with "and"*)
-    apply prove_st_spec_bnd_nondep with
-    (Q1:= fun r2 s2 =>
-      (tm_st_wf s2 t /\
-      tm_st_wf s2 t2 /\
-      tm_st_wf s2 r2 /\
-      (forall vv, sub_rep vv r2 t2)) /\
-      (
-      tm_st_wf s2 t1 /\
-      tm_st_wf s2 r1 /\
-      (forall vv, sub_rep vv r1 t1))
-      )
-    (Q2:= fun _ t3 s4 =>
-      tm_st_wf s4 t /\
-      tm_st_wf s4 (Top o t1 t2) /\
-      tm_st_wf s4 t3 /\
-      (forall vv, sub_rep vv t3 (Top o t1 t2))); auto.
-    +  (*Need to use "and" lemma to split*)
-      (*Forst, get t and t2 together*)
-      apply st_spec_and. [apply IH1; auto|].
-      (*Now, need to show that [tm_st_wf] and [sub_rep] are preserved*)
-      (*Separate lemma to show just wf preservation*)
-      apply st_spec_and; [apply sub_t_wf|].
-      apply st_spec_const. auto.
-    + intros r2. apply prove_st_spec_ret.
-      intros i [[Hwft [Hwfr2 Hrep2]] [Hwfr1 Hrep1]].
-      split; [|split]; auto.
-      (*Prove props preserved by [Top]*)
-      -- apply tm_st_wf_op; auto.
-      -- intros vv. apply sub_rep_op; auto.
-  - (*let case - interesting*)
-    intros t1 b IHb IHt1.
-    (*First, use IHt1*)
-    apply prove_st_spec_bnd_nondep with (Q1:=fun r1 s1 =>
-      tm_st_wf s1 t /\ 
-      tm_st_wf s1 r1 /\
-      (forall vv, sub_rep vv r1 t1))
-    (Q2:= fun _ t3 s4 =>
-      tm_st_wf s4 t /\
-      tm_st_wf s4 t3 /\
-      (forall vv, sub_rep vv t3 (Tlet t1 b))); auto.
-    intros r1.
-    (*Now open the bound - need to know that new var not in freevars of t*)
+    (*Now we need to *)
     apply prove_st_spec_dep_bnd_nondep with 
-    (Q1:=fun y1 s2 => 
-      tm_st_wf s2 t /\ 
-      tm_st_wf s2 r1 /\
-      (forall vv, sub_rep vv r1 t1) /\
-      ~ In (fst y1) (tm_fv t1)) (*TODO: see if this is enough*)
-     (Q2:= fun _ t3 s4 =>
-      tm_st_wf s4 t /\
-      tm_st_wf s4 t3 /\
-      (forall vv, sub_rep vv t3 (Tlet t1 b))); auto.
+    (Q1:=fun b2 s2 => 
+      (*Stuff not affected by [t_open_bound]*)
+      (tm_st_wf s2 (snd b1) /\ var_st_wf s2 (fst b1) /\
+      tm_st_wf s2 t /\ tm_st_wf s2 t1 /\
+      tm_st_wf s2 r1 /\ var_st_wf s2 v /\
+      (forall vv, sub_rep vv r1 t1)) /\
+      (*Var not in*)
+      ( ~ In (fst b2) (tm_vars t) /\
+      ~ In (fst b2) (tm_vars (snd b1))) /\       (*TODO: do I need to know not in t1 also?*)
+      (*Stuff from [t_open_bound_rep]*)
+      (*Need 2 things from the bound: variable not in vars of t1*)
+      (tm_st_wf s2 (snd b2) /\ var_st_wf s2 (fst b2) /\
+      forall vv, tm_rep vv (snd b2) = 
+        tm_rep (add_val (fst b1) (vv (fst b2)) vv) (snd b1)) /\
+      (*The var is not our previous var*)
+      (snd v <> snd (fst b2)))
+      (Q2 := fun _ tm2 i => 
+        tm_st_wf i t /\ tm_st_wf i t1 /\
+        var_st_wf i (fst b1) /\ tm_st_wf i (snd b1) /\
+        tm_st_wf i tm2 /\ var_st_wf i v /\ 
+        (forall vv : val, sub_rep vv tm2 (Tlet t1 b1))); auto.
     + (*Prove [t_open_bound] part*)
-      (*Want to get rid of r1 parts, not interesting*)
-      eapply st_spec_weaken with (P1:= fun i =>
-        (tm_st_wf i r1 /\ (forall vv : val, sub_rep vv r1 t1)) /\
-        tm_st_wf i t) (Q1 := fun _ x f =>
-        (tm_st_wf f r1 /\ (forall vv : val, sub_rep vv r1 t1)) /\
-        (tm_st_wf f t /\ ~ In (fst x) (tm_fv t1))); auto.
-      1: { intros i. intros [Hwf1 [Hwf2 Hvv]]. auto. }
-      1: { intros _ x f [[Hwf1 Hvv] [Hwf2 Hfv]]; auto. }
-      (*separate out interesting parts*)
+      (*Need to duplicate 2 assumptions*)
+      apply st_spec_weaken_pre with (P1:=fun i =>
+        (*Not related to t_open_bound*)
+          (tm_st_wf i (snd b1) /\ var_st_wf i (fst b1) /\
+          tm_st_wf i t /\ tm_st_wf i t1 /\
+          tm_st_wf i r1 /\ var_st_wf i v /\ (forall vv : val, sub_rep vv r1 t1)) /\
+          (*Preconditions for spec*)
+          (tm_st_wf i (snd b1) /\ var_st_wf i (fst b1)) /\
+          (*Need for var*)
+          (tm_st_wf i t /\ tm_st_wf i (snd b1)) /\
+          (*Need for var neq*)
+          (var_st_wf i v));
+      [intros; destruct_all; split_all; auto|].
       apply st_spec_and.
-      1: { apply st_spec_and; [apply t_open_bound_wf|apply st_spec_const]; auto. }
-      (*Prove postcondition of [t_open_bound]*)
-      {
-        unfold t_open_bound.
-        destruct b as [v2 t2]. 
-        eapply prove_st_spec_bnd_nondep with (Q1:= fun v1 s1 => tm_st_wf s1 t /\
-        ~ In v1 (tm_fv t1)) (Q2:=fun _ r s2 =>
-          tm_st_wf s2 t /\ ~ In (fst r) (tm_fv t1)); auto.
-        - (*[rename_var] goal*)
-          unfold rename_var.
-
+      * repeat apply st_spec_and; try apply t_open_bound_wf; try apply t_open_bound_var_wf.
+        apply st_spec_const; auto.
+      * apply st_spec_weaken_post with (Q1:=fun _ r s2 =>
+        (tm_st_wf s2 (snd r) /\
+          var_st_wf s2 (fst r) /\
+          (forall vv : val, tm_rep vv (snd r) = tm_rep (add_val (fst b1) (vv (fst r)) vv) (snd b1))) /\
+          (~ In (fst r) (tm_vars t) /\ ~ In (fst r) (tm_vars (snd b1))) /\
+          (snd (fst r) <> snd v));
+        [ intros; destruct_all; split_all; auto|].
+        apply st_spec_and; [apply t_open_bound_rep |].
+        apply st_spec_and; [apply st_spec_and; apply t_open_bound_notin |
+        ]. apply t_open_bound_var_notin.
+    + (*Now we have [t_open_bound] info, apply 2nd IH*)
+      intros b2 i2 Hb2.
+      (*Again, weaken precondition to separate IH parts and non-IH parts*)
+      apply st_spec_weaken_pre with (P1:= fun s2 =>
+        (tm_st_wf s2 t /\ tm_st_wf s2 (snd b2) /\ var_st_wf s2 v) /\
+        (*Non-IH parts*)
+        (tm_st_wf s2 (snd b1) /\ var_st_wf s2 (fst b1) /\
+        tm_st_wf s2 t1 /\ tm_st_wf s2 r1 /\ (forall vv : val, sub_rep vv r1 t1)) /\
+        ~ In (fst b2) (tm_vars t) /\ ~ In (fst b2) (tm_vars (snd b1)) /\
+        var_st_wf s2 (fst b2) /\
+        (forall vv : val, tm_rep vv (snd b2) = tm_rep (add_val (fst b1) (vv (fst b2)) vv) (snd b1)) /\
+        snd v <> snd (fst b2));      
+        [intros; destruct_all; split_all; auto|].
+      apply prove_st_spec_bnd_nondep with (Q1:=fun r2 i =>
+      (*Stuff from IH*)
+      (tm_st_wf i t /\ tm_st_wf i (snd b2) /\
+        tm_st_wf i r2 /\ var_st_wf i v /\ 
+        (forall vv : val, sub_rep vv r2 (snd b2))) /\
+      (*Rest of stuff*)
+      (tm_st_wf i (snd b1) /\ var_st_wf i (fst b1) /\
+        tm_st_wf i t1 /\ tm_st_wf i r1 /\ (forall vv : val, sub_rep vv r1 t1)) /\
+        ~ In (fst b2) (tm_vars t) /\ ~ In (fst b2) (tm_vars (snd b1)) /\
+        var_st_wf i (fst b2) /\
+        (forall vv : val, tm_rep vv (snd b2) = 
+          tm_rep (add_val (fst b1) (vv (fst b2)) vv) (snd b1)) /\
+        snd v <> snd (fst b2))
+      (Q2:=(fun _  (tm2 : tm) (i : CoqBigInt.t) =>
+        tm_st_wf i t /\
+        tm_st_wf i t1 /\
+        var_st_wf i (fst b1) /\
+        tm_st_wf i (snd b1) /\
+        tm_st_wf i tm2 /\ var_st_wf i v /\ 
+        (forall vv : val, sub_rep vv tm2 (Tlet t1 b1)))); auto.
+      1: {
+        apply st_spec_and; [eapply IHb; eauto|].
+        repeat (apply st_spec_and); try apply sub_t_wf;
+        try apply sub_t_var_wf; apply st_spec_const; auto.
       }
-        *
-
-
-eapply prove_st_spec_bnd_nondep with (Q1:=fun _ s1 => tm_st_wf s1 tm1)
-    (Q2:=fun _ _ s2 => tm_st_wf s2 tm1); auto.
-  - unfold rename_var, create_var.
-    (*Here, use counter info*)
-    apply prove_st_spec_bnd_nondep with (Q1:=fun _ s1 => tm_st_wf s1 tm1)
-      (Q2:=fun _ _ s2 => tm_st_wf s2 tm1); auto.
-    + apply st_spec_incr. 
-      (*The only interesting part: if wf, still wf with succ*)
-      intros i. unfold tm_st_wf.
-      (*TODO: add result: i < CoqBigInt.succ i*)
-      intros Hlt x Hinx. 
-      assert (Hsucc: forall x, x < CoqBigInt.succ x) by (unfold CoqBigInt.succ; lia).
-      specialize (Hsucc i). specialize (Hlt _ Hinx). lia.
-    + intros _. apply prove_st_spec_bnd_nondep with (Q1:=fun _ s1 => tm_st_wf s1 tm1)
-      (Q2:=fun _ _ s2 => tm_st_wf s2 tm1); auto.
-      * apply st_spec_get. auto.
-      * intros i. apply prove_st_spec_ret. auto.
-  - intros x. apply prove_st_spec_ret. auto.
-
-
-      * apply 
-      1: { intros i.
-      
-      
-       rewrite and_comm. }
-      apply st_spec_and; [apply t_open_bound_wf|].
-      apply st_spec_and; [apply t_open_bound_wf|].
-       Search t_open_bound.
-    
-    tm_st_wf s1 tm2)
-    (Q2:= fun _ t3 s4 => tm_st_wf s4 tm2); auto.
-
-
-    * auto.
-    + auto.
-  - 
-          unfold tm_st_wf.
-        
-         [Hwft [Hwfr2 [Hrep2 [Hwfr1 Hrep1]]]].
-
-        
-
-(* eapply st_spec_weaken with (Q1:=
-        (fun _ t3 s4 =>
-          (tm_st_wf )
-        
-        ).
-      3: { apply st_spec_and.  }
-      (*Idea: in precondition, add " /\ True"
-        then prove "and" *)
-      eapply st_spec_weaken.
-      3: {
-        apply st_spec_and. apply IH1.
-      }
-      apply st_spec_and.
-      * apply IH1.*)
-      *
-      (Q2 := fun _ t3 t4 =>
-        ).
-      1: eapply st_spec_weaken; [| | apply IH1; auto].
-      1: apply IH1.
-       (Q1:=fun r2 s2 =>
-      tm_st_wf s2 t /\
-      tm_st_wf s2 r1 /\
-      (forall vv, sub_rep vv r1 t1) /\
-      tm_st_wf s2 r2 /\
-      (forall vv, sub_rep vv r2 t2)).
-      * eapply st_spec_weaken. 3: apply IH1. 
-        -- intros i [Hi _]; exact Hi.
-        -- simpl. intros _  apply IH1.
-      
-       with 
-      (*Q1: after IH2*)
-      (Q1:= fun _ r2 s2 =>
-      tm_st_wf s2 t /\
-      tm_st_wf s2 r1 /\
-      (forall vv, sub_rep vv r1 t1) /\
-      tm_st_wf s2 r2 /\
-      (forall vv, sub_rep vv r2 t2))
-      (*P2, almost the same - *)
-      (P2 := fun r2 s2 =>
-      tm_st_wf s2 t /\
-      tm_st_wf s2 r1 /\
-      (forall vv, sub_rep vv r1 t1) /\
-      tm_st_wf s2 r2 /\
-      (forall vv, sub_rep vv r2 t2)).
-      
-      (Q2:= fun _ _ t3 s4 =>
-        tm_st_wf s4 t /\
-        tm_st_wf s4 t3 /\
-        (forall vv, sub_rep vv t3 (Tadd t1 t2))).
-      * apply st_spec_weaken with
-        (Q1:= fun s2 ). 3: apply IH1; auto.
-        -- simpl. intros i [H1 _]; auto.
-        -- 
-      
-       apply prove_st_spec_ret.
-    
-     eapply prove_st_spec_bnd with 
-      (P2:= fun tm i => tm_st_wf i t /\ 
-        (forall vv, sub_rep vv x t1) /\ (forall vv, sub_rep vv tm t2))
-      (Q1:= fun s1 tm s2 => 
-        tm_st_wf s2 t /\
-        tm_st_wf s2 tm /\
-        (forall vv, sub_rep vv x t1) /\ (forall vv, sub_rep vv tm t2)).
-      * eapply st_spec_weaken.
-        1: { intros i [Hw H2]. apply Hw. }
-        2: apply IH1; auto.
-        intros s1 x1 s2. simpl. intros [Hwf1 [Hwf2 Hval1]].
-         
-       3: apply IH1; auto. all: simpl; auto.
-        -- intros i [Hi H2]; auto.
-        --  
-    (Q1:=(fun (s1 : CoqBigInt.t) (t2 : tm) (s2 : CoqBigInt.t) =>
-tm_st_wf s1 t /\
-tm_st_wf s2 t2 /\ (forall vv : val, tm_rep vv t2 =
-tm_rep (add_val v (tm_rep vv t) vv) t1)))
-(Q2:=(fun (v2 : tm)(s2: CoqBigInt.t)(t3: tm) (s3: CoqBigInt.t) =>
-  tm_st_wf s2 v2 /\
-  tm_st_wf s3 t3 /\
-  (forall vv, tm_rep vv t3 = tm_rep (add_val v (tm_rep vv t) vv) t3))).
-  + apply IH2.
-  + intros x. apply prove_st_spec_bnd with (P2:= fun tm i => tm_st_wf i t)
-      (Q1:= (fun (s1 : CoqBigInt.t) (t3 : tm) (s2 : CoqBigInt.t) =>
-tm_st_wf s1 t /\
-tm_st_wf s2 t3 /\ (forall vv : val, tm_rep vv t3 =
-tm_rep (add_val v (tm_rep vv t) vv) t2)))
-(Q2:=(fun (v2 : tm)(s2: CoqBigInt.t)(t3: tm) (s3: CoqBigInt.t) =>
-  tm_st_wf s2 v2 /\
-  tm_st_wf s3 t3 /\
-  (forall vv, tm_rep vv t3 = tm_rep (add_val v (tm_rep vv t) vv) t3))).
-    * apply IH1; auto.
-    * intros y. apply prove_st_spec_ret. simpl. 
-  
-
-
-(fun (s1 : CoqBigInt.t) (t2 : tm) (s2 : CoqBigInt.t) =>
-  tm_st_wf s1 t /\
-  tm_st_wf s2 t2 /\ (forall vv : val, tm_rep vv t2 =
-  tm_rep (add_val v (tm_rep vv t) vv) t1))).
-(*     
-    
-     (P2:=fun tm i =>
-      tm_st_wf i t /\ tm_st_wf i tm /\
-      forall vv, tm_rep vv tm = tm_rep (add_val v (tm_rep vv t) vv) t1). *)
-    + apply IH2.
-    + intros x. apply prove_st_spec_bnd with (P2:= fun tm i => tm_st_wf i t)
-      (Q1:= (fun (s1 : CoqBigInt.t) (t3 : tm) (s2 : CoqBigInt.t) =>
-tm_st_wf s1 t /\
-tm_st_wf s2 t3 /\ (forall vv : val, tm_rep vv t3 =
-tm_rep (add_val v (tm_rep vv t) vv) t2)))
-(Q2:=()).
-      * apply IH1; auto.
-      * intros y. apply prove_st_spec_ret.
-
-
-       simpl. 
-      2: {}
-     apply prove_st_spec_ret.
-
-  
-    + intros vv. unfold 
-     simpl.
-     split_all.
-
-  
-   eapply st_spec_weaken. 3: apply st_spec_ret.
-    + simpl. auto.
-    + simpl. intros i x f [Hif Hx]; subst. auto.
-    all: auto.
-  unfold sub_t.
-
-
-  st_spec (fun i t1 => 
-    tm_st_wf i t /\ tm_st_wf i t1) (fun (tm2: tm) => 
-    forall vv, tm_rep vv tm2 = tm_rep (add_val v (tm_rep vv t) vv) tm1)
-  tm1 (sub_t v t tm1).
-Proof.
-  unfold sub_t.
-  apply tm_traverse_elim.
-  - intros c. simpl. unfold st_spec, tm_st_wf; simpl; intros; auto.
-  - intros x. simpl. unfold st_spec, tm_st_wf; simpl. intros i [Ht _]. 
-    split; [split|]; auto.
-    + intros y. (*we need to know that t does not introduce larger vars*) 
-      destruct (var_dec v x); simpl; auto. contradiction.
-    + intros vv. unfold add_val. destruct (var_dec v x); subst; simpl; auto.
-  - intros t1 t2 IH1 IH2.
-    eapply st_spec_bind.
-    2: {
-      eapply st_spec_bind.
+      intros r2.
+      apply prove_st_spec_ret.
+      intros i3.
+      (*And now finally, we have to prove the pure proposition about substitution*)
+      destruct b1 as [v1 tma];
+      destruct b2 as [v2 tmb]; simpl. clear IHb IHt1 Hb2 (*TODO: do we need Hb2*).
+      intros [[Hwft [Hwftmb [Hwfr2 [Hwfv Hrep2]]]] 
+        [[Hwftma [Hwfv1 [Hwft1 [Hwfr1 Hrep1]]]] 
+        [Hnotint [Hnotina [Hwfv2 [Hrepb Hneqvar]]]]]].
+      split_all; auto.
+      1: { apply tm_st_wf_let_iff. split_all; auto. }
+      (*rep is interesting part*)
+      intros vv.
+      unfold sub_rep in *. simpl.
+      (*First, work on LHS*)
+      (*Substitute IH1 in rep*)
+      replace (tm_rep (add_val v2 (tm_rep vv r1) vv) r2) with
+        (tm_rep (add_val v2 (tm_rep (add_val v (tm_rep vv t) vv) t1) vv) r2).
       2: {
+        apply tm_rep_change_vv.
+        intros x Hinx. unfold add_val at 1 3. destruct (var_dec v2 x); auto.
+      }
+      (*vv' = v -> [t]_v, vv*)
+      remember (add_val v (tm_rep vv t) vv) as vv'.
+      (*Use IH2*)
+      rewrite Hrep2.
+      (*Use fact that v2 notin fv of t to remove the (add_val v2)*)
+      replace (tm_rep (add_val v2 (tm_rep vv' t1) vv) t) with
+        (tm_rep vv t).
+      2: {
+        apply tm_rep_change_vv.
+        intros x Hinx. unfold add_val. 
+        destruct (var_dec v2 x); subst; auto.
+        exfalso. apply Hnotint. unfold tm_vars; rewrite in_app_iff; auto.
+      }
+      (*Now use result of unsafe sub (here, in Hrepb)*)
+      rewrite Hrepb.
+      (*And lookup v2*)
+      replace (add_val v (tm_rep vv t) (add_val v2 (tm_rep vv' t1) vv) v2) with
+      (tm_rep vv' t1).
+      2: {
+        unfold add_val. destruct (var_dec v v2); subst; auto.
+        - (*v <> v2 because v2 was fresh*) contradiction.
+        - destruct (var_dec v2 v2); auto. contradiction.
+      }
+      (*Since v2 is not in tma, can remove from rep*)
+      apply tm_rep_change_vv.
+      intros x Hinx. subst. unfold add_val.
+      destruct (var_dec v1 x); subst; simpl; auto.
+      destruct (var_dec v x); subst; simpl; auto.
+      destruct (var_dec v2 x); subst; auto.
+      exfalso. apply Hnotina. unfold tm_vars. rewrite in_app_iff; auto.
+Qed.
 
-      } 
-    }
-    + apply IH2.
-     with (P2 := fun _ => True).
-    + 
-
-  
-  
-   unfold st_spec in *; simpl in *. 
-
-
-
-      * unfold add_val. destruct (var_dec v v); auto. contradiction.
-      * unfold add_val. 
-   st_spec. simpl.
-
-    )
-  st_prop tm_st_wf tm1 ()
-
-  
-
-  (const_case: forall (c: Z), ctr T)
-  (var_case: forall (x: var), ctr T)
-  (add_case: forall (t1 t2: tm) (r1 r2: T), ctr T)
-  (mult_case: forall (t1 t2: tm) (r1 r2: T), ctr T)
-  (*NOTE: recursive case 2 on [t_open_bound]*)
-  (let_case: forall (t1: tm) (b: tm_bound) (r1 r2: T), ctr T).
-  
-   simpl.
-   intros x.
-  
-  
-   apply functional_extensionality. simpl.
-  
-   simpl.
-  f_equal.
-
-Lemma tm_traverse_eq (tm1: tm):
-  tm_traverse tm1 =
-  match tm1 with
-  | Tconst c => const_case c
-  | Tvar x => var_case x
-  | Tadd t1 t2 =>
-    v1 <- tm_traverse t1 ;;
-    v2 <- tm_traverse t2 ;;
-    add_case t1 t2 v1 v2
-  | Tmult t1 t2 =>
-    v1 <- tm_traverse t1 ;;
-    v2 <- tm_traverse t2 ;;
-    mult_case t1 t2 v1 v2
-  | Tlet 
-
-
-Equations tm_traverse (tm1: tm) : ctr T by wf (tm_size tm1) lt :=
-  tm_traverse (Tconst c) := const_case c;
-  tm_traverse (Tvar x) := var_case x;
-  tm_traverse (Tadd t1 t2) :=
-    v1 <- tm_traverse t1 ;;
-    v2 <- tm_traverse t2 ;;
-    add_case t1 t2 v1 v2;
-  tm_traverse (Tmult t1 t2) :=
-    v1 <- tm_traverse t1 ;;
-    v2 <- tm_traverse t2 ;;
-    mult_case t1 t2 v1 v2;
-  tm_traverse (Tlet t1 b) :=
-    v1 <- tm_traverse t1 ;;
-    (*Need dependent types here to have enough information for the proof*)
-    st_bind_dep _ _ _ (t_open_bound b)
-      (fun y s Heq => 
-        v2 <- (tm_traverse (snd y)) ;;
-        let_case t1 b v1 v2).
-
-
-  .
-
-
-(*Safe substitution*)
-From Equations Require Import Equations.
-Require Import Lia.
-Section SafeSub.
-Variable (v: var) (t: tm).
-
-(*Use Equations for now*)
-Obligation Tactic := simpl; try lia.
-Equations sub_t (tm1: tm) : ctr tm by wf (tm_size tm1) lt :=
-  sub_t (Tconst c) := st_ret (Tconst c);
-  sub_t (Tvar x) := st_ret (if var_dec x v then t else (Tvar x));
-  sub_t (Tadd t1 t2) :=
-    t1' <- sub_t t1 ;;
-    t2' <- sub_t t2 ;;
-    st_ret (Tadd t1' t2');
-  sub_t (Tmult t1 t2) :=
-    t1' <- sub_t t1 ;;
-    t2' <- sub_t t2 ;;
-    st_ret (Tmult t1' t2');
-  sub_t (Tlet t1 b) :=
-    t1' <- sub_t t1 ;;
-   (*Need dependent types here to have enough information for the proof*)
-    st_bind_dep _ _ _ (t_open_bound b)
-      (fun y s Heq => sub_t (snd y)).
-Next Obligation.
-intros t1 [v1 t2] _ _ y s Hy; subst.
-simpl.
-rewrite tm_subst_unsafe_var_size. lia.
-Defined.
-Next Obligation.
-intros t1 b _; destruct b; simpl; lia.
-Defined.
-
-End SafeSub.
-
-From Coq Require Import Extraction.
-
-Extraction sub_t.
-
-(*Subst*)
-
-unfold t_open_bound. simpl.
-
-intros; subst. 
-simpl.
-intros t1 b IH t2 bound v2. simpl in *.
-
-
-
-(*Use "Well Founded Recursion Done Right"*)
-Lemma size_add1 t1 t2: (tm_size t1 < tm_size (Tadd t1 t2))%nat.
-Proof. simpl; lia. Qed.
-Lemma size_add2 t1 t2: (tm_size t2 < tm_size (Tadd t1 t2))%nat.
-Proof. simpl; lia. Qed.
-Lemma size_mult1 t1 t2: (tm_size t1 < tm_size (Tmult t1 t2))%nat.
-Proof. simpl; lia. Qed.
-Lemma size_mult2 t1 t2: (tm_size t2 < tm_size (Tmult t1 t2))%nat.
-Proof. simpl; lia. Qed.
-Check st_bind_dep.
-Fixpoint sub_t (tm1: tm) (ACC: Acc lt (tm_size tm1)) : ctr tm :=
-  match tm1 return Acc lt (tm_size tm1) -> ctr tm with
-  | Tconst c => fun _ => st_ret (Tconst c)
-  | Tvar x => fun _ => st_ret (if var_dec x v then t else (Tvar x))
-  | Tadd t1 t2 => fun ACC => 
-    t1' <- sub_t t1 (Acc_inv ACC (size_add1 _ _)) ;;
-    t2' <- sub_t t2 (Acc_inv ACC (size_add2 _ _)) ;;
-    st_ret (Tadd t1' t2')
-  | Tmult t1 t2 => fun ACC =>
-    t1' <- sub_t t1 (Acc_inv ACC (size_mult1 _ _)) ;;
-    t2' <- sub_t t2 (Acc_inv ACC (size_mult2 _ _)) ;;
-    st_ret (Tmult t1' t2')
-  | Tlet t1 b => fun ACC =>
-    t1' <- sub_t t1 (Acc_inv ACC _) ;;
-    (*Need dependent types here to have enough information for the proof*)
-    st_bind_dep _ _ _ (t_open_bound b)
-      (fun y s Heq => sub_t (snd y) (Acc_inv ACC _))
-  end ACC.
-    
-     (sub_t (snd ))
-    y <-- s <-- Heq <-- (t_open_bound b) ;;
-    sub_t (snd y) (Acc_inv ACC _)
-  end ACC.
-
-
-Obligation Tactic := simpl; try lia.
-Equations sub_t (tm1: tm) : ctr tm by wf (tm_size tm1) lt :=
-  sub_t (Tconst c) := st_ret (Tconst c);
-  sub_t (Tvar x) := st_ret (if var_dec x v then t else (Tvar x));
-  sub_t (Tadd t1 t2) :=
-    t1' <- sub_t t1 ;;
-    t2' <- sub_t t2 ;;
-    st_ret (Tadd t1' t2');
-  sub_t (Tmult t1 t2) :=
-    t1' <- sub_t t1 ;;
-    t2' <- sub_t t2 ;;
-    st_ret (Tmult t1' t2');
-  sub_t (Tlet t1 b) :=
-    t1' <- sub_t t1 ;;
-    y <- t_open_bound b ;;
-    sub_t (snd y).
-Next Obligation.
-intros t1 b IH t2 bound v2. simpl in *.
-
-Fixpoint int_rect_aux (z: CoqBigInt.t) 
-  (ACC: Acc lt (Z.to_nat z)) {struct ACC} : P z :=
-  match CoqBigInt.lt z CoqBigInt.zero as b return
-  CoqBigInt.lt z CoqBigInt.zero = b -> P z with
-  | true => fun Hlt => neg_case _ Hlt
-  | false => fun Hlt =>
-    match CoqBigInt.eqb z CoqBigInt.zero as b return
-      CoqBigInt.eqb z CoqBigInt.zero = b -> P z with
-    | true => fun Heq => eq_rect _ P zero_case _ (eq_sym (zero_lemma _ Heq))
-    | false => fun Hneq => 
-      ind_case _ Hneq Hlt (int_rect_aux (CoqBigInt.pred z) 
-        (Acc_inv ACC (int_wf_lemma _ Hneq Hlt)))
-    end eq_refl
-  end eq_refl.
-
-  match tm1 with
-  | Tconst c => st_ret tm1
-  | Tvar x => st_ret (if var_dec x v then t else tm1)
-  | Tadd t1 t2 => 
-    t1' <- sub_t v t t1 ;;
-    t2' <- sub_t v t t2 ;;
-    st_ret (Tadd t1' t2')
-  | Tmult t1 t2 =>
-    t1' <- sub_t v t t1 ;;
-    t2' <- sub_t v t t2 ;;
-    st_ret (Tmult t1' t2')
-  | Tlet t1 b =>
-    t1' <- sub_t v t t1 ;;
-    y <- t_open_bound b ;;
-    let (x, t2) := y : var * tm in
-    sub_t x t t2
-  end.
-
-
-
-    Definition t_open_bound (b: tm_bound) : ctr (var * tm) :=
-  let (v, t) := b in
-  v1 <- rename_var v ;;
-  st_ret (v1, tm_subst_unsafe v (Tvar v1) t).
-  
-  Tadd (sub_t)
-
-
-
-Print fmla.
-
-
-
-(*let with bindings*)
-
-
-
-Print fmla.
-
-Print tm.
-
-
-
-
-(*Open and Close Binders*)
-
-(*TODO: implement open, close binders*)
-
-(*Alpha equivalence*)
-
+(*The more useful corollary: semantic and syntactic substitution
+  coincide*)
+Corollary sub_t_rep (tm1: tm):
+  st_spec (fun i => tm_st_wf i t /\ tm_st_wf i tm1 /\ var_st_wf i v)
+    (sub_t v t tm1)
+    (fun _ t2 _ => forall vv, 
+      tm_rep vv t2 = tm_rep (add_val v (tm_rep vv t) vv) tm1).
+Proof.
+  eapply st_spec_weaken_post. 2: apply sub_t_correct.
+  simpl. unfold sub_rep. intros; destruct_all; auto.
+Qed.
