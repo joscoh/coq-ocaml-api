@@ -1,7 +1,7 @@
 (*A Subset of the OCaml List library
 (https://ocaml.org/manual/5.2/api/List.html), 
 showing how to use exceptions in Coq*)
-From CoqCompat Require Import Monads IntFuncs.
+From CoqCompat Require Import Monads CoqInt.
 Import MonadNotations.
 
 Local Open Scope err_scope.

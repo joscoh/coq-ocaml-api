@@ -4,7 +4,7 @@
 From CoqCompat Require CoqBigInt CoqInt.
 Require Import Coq.Strings.String.
 Require Import Coq.Lists.List.
-Require Export Coq.ZArith.BinInt.
+Require Import Coq.ZArith.BinInt.
 Require Export Lia.
 
 Local Open Scope Z_scope.

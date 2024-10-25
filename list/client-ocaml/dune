@@ -1,0 +1,4 @@
+(executable
+ (public_name clientlist)
+ (name ListClient)
+ (libraries ListAPI))
