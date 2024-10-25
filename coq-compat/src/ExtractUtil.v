@@ -40,9 +40,9 @@ Extract Inlined Constant CoqBigInt.zero => "BigInt.zero".
 Extract Inlined Constant CoqBigInt.succ => "BigInt.succ".
 (* Extract Inlined Constant CoqBigInt.pred => "BigInt.pred".
 Extract Inlined Constant CoqBigInt.sub => "BigInt.sub".
-Extract Inlined Constant CoqBigInt.mul => "BigInt.mul".
+Extract Inlined Constant CoqBigInt.mul => "BigInt.mul".*)
 Extract Inlined Constant CoqBigInt.eqb => "BigInt.eq".
-Extract Inlined Constant CoqBigInt.mul_int => "BigInt.mul_int".
+(*Extract Inlined Constant CoqBigInt.mul_int => "BigInt.mul_int".
 Extract Inlined Constant CoqBigInt.add => "BigInt.add".
 Extract Inlined Constant CoqBigInt.lt => "BigInt.lt".
 Extract Inlined Constant CoqBigInt.is_zero => "BigInt.is_zero".
@@ -123,6 +123,7 @@ Extraction Inline Monad_errorM.
 Extract Constant st "'a" "'b" => "'b".
 Extract Inlined Constant st_bind => "(@@)".
 Extract Inlined Constant st_ret => "(fun x -> x)".
+Extract Inlined Constant st_bind_dep => "(fun x y -> y x () ())".
 
 (*Combine state monads*)
 Extract Inlined Constant st_lift1 => "".

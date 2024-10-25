@@ -1,0 +1,24 @@
+(coq.extraction
+ (prelude TermAPIExtract)
+ (extracted_modules Datatypes Nat0 TermAPI)
+ (theories Flocq compcert TermAPI CoqCompat ExtLib Equations)
+ )
+
+(rule
+  (deps TermImports.ml TermAPI.ml)
+  (targets term.ml)
+  (action
+    (with-stdout-to term.ml
+     (pipe-stdout
+        (cat TermAPI.ml)
+        (run sed -e "s/^open.*//g")
+        (run cat TermImports.ml -)
+     )
+    )))
+
+; build resulting OCaml files
+(library
+ (name TermAPI)
+ (modules (:standard \ TermAPI ))
+ (flags (:standard -w -33 -w -32 -w -34 -w -37)) 
+ (libraries CoqAPI zarith re))
