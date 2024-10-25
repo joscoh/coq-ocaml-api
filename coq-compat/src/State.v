@@ -1,7 +1,7 @@
-(*A module for state, mutable when extracted to OCaml*)
+(*A module for state, stored in a mutable ref when extracted to OCaml*)
 (*This module ensures that multiple instances can be created
   and that we know that the mutable reference's name is unique*)
-Require Export Monads.
+From CoqCompat Require Export Monads.
 From ExtLib Require Import StateMonad.
 
 (*These need to be visible externally for extraction, but
@@ -11,7 +11,7 @@ Local Definition st_set {A: Type} (t: A) : st A unit := put t.
 Local Definition st_get {A: Type} : st A A := get.
 (*Need for extraction - creates mutable ref*)
 Local Definition new_st {A: Type} (t: A) : st A unit := put t.
-(*Using this function violates all guarantees about the
+(*Using this function violates all assumptions about the
   equivalence between Coq and OCaml impls.
   This should ONLY be used within the following Module*)
 Definition st_run_UNSAFE {S A: Type} (x: S) (y: st S A) : A :=

@@ -1,4 +1,4 @@
-Require Export State Monads.
+From CoqCompat Require Export State Monads.
 
 (*Reasoning about state monads in a Hoare-style way*)
 (*An adaptation of the technique in "The Hoare State Monad" by Swierstra,
