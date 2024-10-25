@@ -301,7 +301,7 @@ Proof.
         tm_st_wf i t1 /\ ~ In v2 (tm_vars t1)); auto.
       3: { intros; destruct_all; subst; auto. }
       * apply C.st_spec_incr. intros i [Hi Hwf]; subst; split_all; auto.
-        (*TODO*) unfold CoqBigInt.succ; lia.
+        unfold CoqBigInt.succ; lia.
       * intros _. apply prove_st_spec_ret.
         intros i [Hi Hwf]; split; auto.
         -- eapply tm_st_wf_lt; eauto. lia.
@@ -336,7 +336,7 @@ Proof.
         i1 < i /\var_st_wf i1 x /\ snd v2 <> snd x); auto.
       3: { intros; destruct_all; subst; auto. }
       * apply C.st_spec_incr. intros i [Hi Hwf]; subst; split_all; auto.
-        (*TODO*) unfold CoqBigInt.succ; lia.
+        unfold CoqBigInt.succ; lia.
       * intros _. apply prove_st_spec_ret. intros i [Hi Hwf].
         split_all; auto. simpl.
         intros Hc; subst. unfold var_st_wf in Hwf. lia.
@@ -385,7 +385,7 @@ Proof.
       tm_st_wf i t1 /\ var_st_wf i v1 /\ var_st_wf i v2 /\ ~ In v2 (tm_bnd t1)); auto.
     3: { intros; destruct_all; subst; auto. }
     + (*incr*) apply C.st_spec_incr. intros i [Heq [Hwf1 Hwf2]]; subst. 
-      split_all; auto. (*TODO*) unfold CoqBigInt.succ; lia.
+      split_all; auto. unfold CoqBigInt.succ; lia.
     + (*create new var*)
       intros _. apply prove_st_spec_ret. intros j [Hij [Hwf1 Hwf2]].
       split_all; auto.
@@ -542,7 +542,6 @@ Proof.
       tm_st_wf s1 r1 /\
       var_st_wf s1 v /\
       (forall vv, sub_rep vv r1 t1)))
-    (*TODO: isn't this the same as post*)
     (Q2:= fun _ t3 s4 =>
       tm_st_wf s4 t /\
       tm_st_wf s4 t1 /\
@@ -612,7 +611,6 @@ Proof.
       [apply sub_t_wf|apply sub_t_var_wf].
     }
     intros r1.
-    (*Now we need to *)
     apply prove_st_spec_dep_bnd_nondep with 
     (Q1:=fun b2 s2 => 
       (*Stuff not affected by [t_open_bound]*)
@@ -622,7 +620,7 @@ Proof.
       (forall vv, sub_rep vv r1 t1)) /\
       (*Var not in*)
       ( ~ In (fst b2) (tm_vars t) /\
-      ~ In (fst b2) (tm_vars (snd b1))) /\       (*TODO: do I need to know not in t1 also?*)
+      ~ In (fst b2) (tm_vars (snd b1))) /\    
       (*Stuff from [t_open_bound_rep]*)
       (*Need 2 things from the bound: variable not in vars of t1*)
       (tm_st_wf s2 (snd b2) /\ var_st_wf s2 (fst b2) /\
@@ -705,7 +703,7 @@ Proof.
       intros i3.
       (*And now finally, we have to prove the pure proposition about substitution*)
       destruct b1 as [v1 tma];
-      destruct b2 as [v2 tmb]; simpl. clear IHb IHt1 Hb2 (*TODO: do we need Hb2*).
+      destruct b2 as [v2 tmb]; simpl. clear IHb IHt1 Hb2.
       intros [[Hwft [Hwftmb [Hwfr2 [Hwfv Hrep2]]]] 
         [[Hwftma [Hwfv1 [Hwft1 [Hwfr1 Hrep1]]]] 
         [Hnotint [Hnotina [Hwfv2 [Hrepb Hneqvar]]]]]].
