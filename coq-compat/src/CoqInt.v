@@ -1,7 +1,8 @@
 (*A light axiomatization/implementation of OCaml's ints.
   We implement using Coq bounded ints but extract to
   OCaml int. See comment in CoqBigInt.v*)
-Require Import Coq.ZArith.BinInt.
+Require Export Coq.ZArith.BinInt.
+Require Export Lia.
 From compcert Require Import lib.Integers.
 Require Coq.Init.Nat.
 
@@ -29,8 +30,6 @@ Definition lt := Int31.lt.
 (*OCaml uses signed ints*)
 Definition to_Z (i: int) : Z := Int31.signed i.
 Definition of_Z (z: Z) : int := Int31.repr z.
-
-Require Import Lia.
 
 Lemma to_Z_zero: to_Z zero = 0%Z.
 Proof. reflexivity. Qed.

@@ -7,6 +7,8 @@ Local Open Scope Z_scope.
 From CoqCompat Require CoqBigInt.
 From CoqCompat Require Export Monads CoqCtr.
 Require Import Coq.Logic.FunctionalExtensionality. (*only used in 1 unneeded lemma*)
+From Equations Require Import Equations.
+Require Import Lia.
 
 (*Every term variable has type int*)
 
@@ -200,8 +202,6 @@ Proof.
 Qed.  
 
 (*Binding-safe traversal*)
-From Equations Require Import Equations.
-Require Import Lia.
 Section SafeTraverse.
 Local Obligation Tactic := simpl; try lia.
 

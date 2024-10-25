@@ -1,6 +1,5 @@
 From TermAPI Require Import TermAPI TermSemantics.
 From CoqCompat Require Export StateHoare.
-Require Import Coq.ZArith.BinInt.
 Require Import Lia.
 Local Open Scope Z_scope.
 

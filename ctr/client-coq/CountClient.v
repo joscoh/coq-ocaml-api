@@ -2,6 +2,7 @@ From CtrAPI Require Import CtrAPI.
 From CoqCompat Require Import Monads.
 Import MonadNotations.
 Local Open Scope state_scope.
+Require Import Coq.ZArith.BinInt.
 
 Definition test :=
   _ <- create tt ;;
@@ -12,7 +13,7 @@ Definition test :=
   x3 <- read tt ;;
   st_ret (x1, x2, x3).
 
-Require Import Coq.ZArith.BinInt.
+
 
 Definition runTest := 
   let '(n1, n2, n3) := run_and_reset test in
