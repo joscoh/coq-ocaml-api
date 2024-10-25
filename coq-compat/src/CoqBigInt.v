@@ -14,6 +14,7 @@ Local Open Scope Z_scope.
 
 Definition t : Set := Z.
 Definition zero : t := 0.
+Definition one : t := 1.
 Definition succ : t -> t := Z.succ.
 Definition eqb : t -> t -> bool := Z.eqb.
 

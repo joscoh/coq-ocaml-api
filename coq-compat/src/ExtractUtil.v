@@ -36,7 +36,7 @@ Extract Inlined Constant of_tup3 => "(fun (x, y, z) -> ((x, y), z))". *)
   support (include_subdirs unqualified) with Coq*)
 Extract Inlined Constant CoqBigInt.t => "BigInt.t".
 Extract Inlined Constant CoqBigInt.zero => "BigInt.zero".
-(* Extract Inlined Constant CoqBigInt.one => "BigInt.one". *)
+Extract Inlined Constant CoqBigInt.one => "BigInt.one".
 Extract Inlined Constant CoqBigInt.succ => "BigInt.succ".
 (* Extract Inlined Constant CoqBigInt.pred => "BigInt.pred".
 Extract Inlined Constant CoqBigInt.sub => "BigInt.sub".

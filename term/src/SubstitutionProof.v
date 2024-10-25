@@ -4,6 +4,21 @@ Require Import Coq.ZArith.BinInt.
 Require Import Lia.
 Local Open Scope Z_scope.
 
+Ltac destruct_all :=
+  repeat match goal with
+  | H: ?P /\ ?Q |-_ => destruct H
+  end.
+
+Ltac split_all :=
+  repeat match goal with
+  | |- ?P /\ ?Q => split
+  end.
+
+Ltac destruct_or :=
+  repeat match goal with
+  | H: ?P \/ ?Q |- _ => destruct H
+  end.
+
 (*Semantics for unsafe substitution*)
 
 (*Valuations that agree on free vars are equivalent*)
@@ -216,21 +231,6 @@ Section SubCorrect.
 Variable (v: var) (t: tm).
 Definition sub_rep (vv: val) (tm1 tm2: tm) :=
   tm_rep vv tm1 = tm_rep (add_val v (tm_rep vv t) vv) tm2.
-
-Ltac destruct_all :=
-  repeat match goal with
-  | H: ?P /\ ?Q |-_ => destruct H
-  end.
-
-Ltac split_all :=
-  repeat match goal with
-  | |- ?P /\ ?Q => split
-  end.
-
-Ltac destruct_or :=
-  repeat match goal with
-  | H: ?P \/ ?Q |- _ => destruct H
-  end.
 
 (*free vars of [tm_subst_unsafe]*)
 Lemma in_fv_subst t1 x t2:
