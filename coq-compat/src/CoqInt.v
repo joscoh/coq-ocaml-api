@@ -1,6 +1,6 @@
 (*A light axiomatization/implementation of OCaml's ints.
   We implement using Coq bounded ints but extract to
-  OCaml int. See comment in CoqBigInt.t*)
+  OCaml int. See comment in CoqBigInt.v*)
 Require Import Coq.ZArith.BinInt.
 From compcert Require Import lib.Integers.
 Require Coq.Init.Nat.

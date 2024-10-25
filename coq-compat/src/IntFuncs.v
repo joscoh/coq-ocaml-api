@@ -1,7 +1,7 @@
-(*Functions that operate on [CoqBigInt.t/CoqInt.int]. They must
+(*Functions that operate on [CoqBigInt.t]. They must
   ONLY use definitions/lemmas from that file. They cannot
   refer to the fact that the type is secretly Z underneath*)
-Require CoqBigInt CoqInt.
+From CoqCompat Require CoqBigInt CoqInt.
 Require Import Coq.Strings.String.
 Require Import Coq.Lists.List.
 Require Export Coq.ZArith.BinInt.
@@ -9,19 +9,12 @@ Require Import Lia.
 
 Local Open Scope Z_scope.
 
-Fixpoint int_length {A: Type} (l: list A) : CoqInt.int :=
-  match l with
-  | nil => CoqInt.zero
-  | _ :: t => CoqInt.succ (int_length t)
-  end.
-
-
-(* Fixpoint int_length {A: Type} (l: list A) : CoqBigInt.t :=
+Fixpoint int_length {A: Type} (l: list A) : CoqBigInt.t :=
   match l with
   | nil => CoqBigInt.zero
   | _ :: t => CoqBigInt.succ (int_length t)
-  end. *)
-(* 
+  end. 
+
 Lemma int_length_nonneg {A: Type} (l: list A) :
   0 <= CoqBigInt.to_Z (int_length l).
 Proof.
@@ -33,7 +26,7 @@ Qed.
 Lemma int_length_spec {A: Type} (l: list A) : 
   Z.to_nat (CoqBigInt.to_Z (int_length l)) = List.length l.
 Proof.
-  induction l; simpl.
+  induction l; simpl int_length.
   - rewrite CoqBigInt.zero_spec. reflexivity.
   - rewrite CoqBigInt.succ_spec.
     rewrite Znat.Z2Nat.inj_succ.
@@ -41,7 +34,6 @@ Proof.
     + apply int_length_nonneg.
 Qed. 
 
-(*TODO: move*)
 Lemma Z2Nat_eqb_nat (z1 z2: Z):
   0 <= z1 ->
   0 <= z2 ->
@@ -64,14 +56,6 @@ Proof.
   rewrite <- Z2Nat_eqb_nat; try solve[apply int_length_nonneg].
   rewrite !int_length_spec. reflexivity.
 Qed.
-
-Definition option_compare {A: Type} (cmp:  A -> A -> CoqInt.int) (o1 o2: option A) : CoqInt.int :=
-  match o1, o2 with
-  | Some v0, Some v1 => cmp v0 v1
-  | None, None => CoqInt.zero
-  | None, Some _ => CoqInt.neg_one
-  | Some _, None => CoqInt.one
-  end.
 
 (*Recursive Functions over BigInts*)
 
@@ -139,6 +123,8 @@ Definition int_rect (z: CoqBigInt.t) : P z :=
 
 End IntFunc.
 
+(*Examples:*)
+
 (*Generate a list from 0 to n-1*)
 Definition iota (z: CoqBigInt.t) : list CoqBigInt.t :=
   @int_rect (fun _ => list CoqBigInt.t)
@@ -149,18 +135,7 @@ Definition iota (z: CoqBigInt.t) : list CoqBigInt.t :=
   (*body*)
   (fun z _ _ rec => z :: rec) z.
 
-(*[iota] is from n down to 1. We want 0 to n-1*)
-Definition iota2 (z: CoqBigInt.t) : list CoqBigInt.t :=
-  rev (map CoqBigInt.pred (iota z)).
-
-(*Lexicographic comparison*)
-Definition lex_comp x1 x2 : CoqInt.int :=
-  if CoqInt.is_zero x1 then x2 else x1.
-
-Definition string_compare (s1 s2: string) : CoqInt.int :=
-  CoqInt.compare_to_int (String.compare s1 s2).
-
-(*nth on lists*)
+(*nth on lists, recursive on int*)
 Definition big_nth {A: Type} (l: list A)  (z: CoqBigInt.t) : option A :=
   @int_rect (fun _ => list A -> option A)
   (*lt*)
@@ -176,4 +151,4 @@ Definition big_nth {A: Type} (l: list A)  (z: CoqBigInt.t) : option A :=
     match l with
     | nil => None
     | _ :: t => rec t
-    end) z l. *)
+    end) z l.
