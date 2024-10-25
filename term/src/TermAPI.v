@@ -169,8 +169,9 @@ Definition f_close_bound (v: var) (f: fmla) : fmla_bound :=
 (* Type Safe API *)
 Definition t_const (z: CoqBigInt.t) : tm := Tconst z.
 Definition t_var (v: var) : tm := Tvar v.
-Definition t_add (tm1 tm2: tm) : tm := Top Add tm1 tm2.
-Definition t_mult (tm1 tm2: tm) : tm := Top Mult tm1 tm2.
+Definition t_op (o: intop) (tm1 tm2: tm) : tm := Top o tm1 tm2.
+Definition t_add (tm1 tm2: tm) : tm := t_op Add tm1 tm2.
+Definition t_mult (tm1 tm2: tm) : tm := t_op Mult tm1 tm2.
 Definition t_let (t1: tm) (b: tm_bound) : tm := Tlet t1 b.
 Definition f_eq (tm1 tm2: tm) : fmla := Feq tm1 tm2.
 Definition f_lt (tm1 tm2: tm) : fmla := Flt tm1 tm2.

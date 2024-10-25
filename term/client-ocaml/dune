@@ -1,0 +1,4 @@
+(executable
+ (public_name clientterm)
+ (name TermClient)
+ (libraries TermAPI))

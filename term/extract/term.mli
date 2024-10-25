@@ -18,6 +18,7 @@ val t_close_bound: var -> tm -> tm_bound
 
 val t_const : BigInt.t -> tm
 val t_var : var -> tm
+val t_op: intop -> tm -> tm -> tm
 val t_add : tm -> tm -> tm
 val t_mult : tm -> tm -> tm
 val t_let : tm -> tm_bound -> tm
